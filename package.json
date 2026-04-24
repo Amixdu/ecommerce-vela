@@ -18,10 +18,14 @@
     "test": "turbo run test -- ",
     "lint": "turbo run lint"
   },
+  "dependencies": {
+    "ajv": "^8.17.1"
+  },
   "devDependencies": {
     "turbo": "^2.3.3",
     "typescript": "^5.5.0"
   },
+  "packageManager": "npm@11.12.1",
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=10.0.0"
