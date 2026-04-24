@@ -1,0 +1,30 @@
+{
+  "name": "backend",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "medusa develop",
+    "build": "medusa build",
+    "start": "medusa start",
+    "db:migrate": "medusa db:migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "seed": "medusa exec ./src/scripts/seed.ts",
+    "lint": "tsc --noEmit",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@medusajs/medusa": "^2.3.3",
+    "@medusajs/dashboard": "^2.3.3",
+    "@medusajs/framework": "^2.3.3",
+    "drizzle-orm": "^0.31.0",
+    "postgres": "^3.4.4",
+    "@ecommerce/types": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "drizzle-kit": "^0.22.0",
+    "typescript": "^5.5.0"
+  }
+}

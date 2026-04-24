@@ -1,0 +1,32 @@
+# Dependencies — reinstalled inside the image
+node_modules/
+**/node_modules/
+
+# Build artifacts
+**/.next/
+**/dist/
+**/.medusa/
+**/build/
+
+# Environment files — injected at runtime, never baked into the image
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Turbo cache
+.turbo/
+
+# Drizzle migration output
+**/drizzle/
+
+# Expo / mobile — not part of the backend image
+apps/mobile/
+
+# Test / lint artefacts
+**/coverage/
+**/*.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
