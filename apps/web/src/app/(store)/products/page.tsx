@@ -37,6 +37,12 @@ export default async function ProductsPage({
           <div className="py-24 text-center">
             <p className="text-muted-foreground">No products found.</p>
           </div>
+        ) : data.products.length === 1 ? (
+          <div className="flex justify-center">
+            <div className="w-full max-w-xs border border-border">
+              <ProductCard product={data.products[0]} />
+            </div>
+          </div>
         ) : (
           <ul className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {data.products.map((product) => (
