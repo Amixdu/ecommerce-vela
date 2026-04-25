@@ -4,6 +4,7 @@ import type {
   ProductListResponse,
   ProductFilters,
   Cart,
+  CartLineItem,
   OrderListResponse,
 } from "@ecommerce/types";
 
@@ -48,7 +49,9 @@ type MedusaProductList = {
 };
 
 function transformVariant(v: MedusaVariant) {
-  const price = v.prices?.[0];
+  const price =
+    v.prices?.find((p) => p.currency_code === STORE_CURRENCY) ??
+    v.prices?.[0];
   return {
     id: v.id,
     title: v.title,
@@ -87,6 +90,69 @@ function transformProduct(p: MedusaProduct): Product {
 }
 
 const PRODUCT_FIELDS = "fields=*variants.prices,*categories";
+const STORE_CURRENCY = (
+  process.env.NEXT_PUBLIC_STORE_CURRENCY ?? "aud"
+).toLowerCase();
+
+type MedusaCartLineItem = {
+  id: string;
+  product_id: string;
+  variant_id: string;
+  product_title: string;
+  variant_title: string;
+  thumbnail?: string | null;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+};
+type MedusaCart = {
+  id: string;
+  customer_id?: string | null;
+  email?: string | null;
+  currency_code: string;
+  items?: MedusaCartLineItem[];
+  subtotal: number;
+  discount_total: number;
+  shipping_total: number;
+  tax_total: number;
+  total: number;
+  region_id?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function transformCart(c: MedusaCart): Cart {
+  return {
+    id: c.id,
+    customerId: c.customer_id ?? undefined,
+    email: c.email ?? undefined,
+    items: (c.items ?? []).map(
+      (item): CartLineItem => ({
+        id: item.id,
+        variantId: item.variant_id,
+        productId: item.product_id,
+        title: item.product_title,
+        variantTitle: item.variant_title,
+        thumbnail: item.thumbnail ?? undefined,
+        quantity: item.quantity,
+        unitPrice: item.unit_price,
+        totalPrice: item.subtotal,
+        currency: c.currency_code,
+      })
+    ),
+    totals: {
+      subtotal: c.subtotal,
+      discountTotal: c.discount_total,
+      shippingTotal: c.shipping_total,
+      taxTotal: c.tax_total,
+      total: c.total,
+      currency: c.currency_code,
+    },
+    regionId: c.region_id ?? undefined,
+    createdAt: c.created_at,
+    updatedAt: c.updated_at,
+  };
+}
 
 async function apiFetch<T>(
   path: string,
@@ -156,8 +222,12 @@ export async function getProductByHandle(handle: string): Promise<Product> {
   return transformProduct(product);
 }
 
-export async function getCart(token: string): Promise<Cart> {
-  return apiFetch<Cart>("/store/carts/me", { token, cache: "no-store" });
+export async function getCart(cartId: string): Promise<Cart> {
+  const data = await apiFetch<{ cart: MedusaCart }>(
+    `/store/carts/${cartId}`,
+    { cache: "no-store" }
+  );
+  return transformCart(data.cart);
 }
 
 export async function getOrders(token: string): Promise<OrderListResponse> {

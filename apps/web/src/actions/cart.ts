@@ -1,24 +1,24 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 
-const BACKEND_URL =
-  process.env.BACKEND_URL || "http://localhost:9000";
-
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:9000";
 const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? "";
+const CART_COOKIE = "medusa_cart_id";
 
-async function backendFetch(
-  path: string,
-  token: string,
-  options: RequestInit = {}
-) {
+function medusaHeaders(): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    ...(PUBLISHABLE_KEY && { "x-publishable-api-key": PUBLISHABLE_KEY }),
+  };
+}
+
+async function backendFetch(path: string, options: RequestInit = {}) {
   const res = await fetch(`${BACKEND_URL}${path}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(PUBLISHABLE_KEY && { "x-publishable-api-key": PUBLISHABLE_KEY }),
+      ...medusaHeaders(),
       ...(options.headers as Record<string, string>),
     },
   });
@@ -31,12 +31,38 @@ async function backendFetch(
   return res.status === 204 ? null : res.json();
 }
 
-export async function addToCart(variantId: string, quantity: number) {
-  const { getToken } = await auth();
-  const token = await getToken();
-  if (!token) throw new Error("Not authenticated");
+async function getFirstRegionId(): Promise<string> {
+  const data = await backendFetch("/store/regions");
+  const region = data?.regions?.[0];
+  if (!region) throw new Error("No regions found. Create one in the Medusa admin: Settings → Regions.");
+  return region.id;
+}
 
-  await backendFetch("/store/carts/me/line-items", token, {
+async function getOrCreateCartId(): Promise<string> {
+  const cookieStore = await cookies();
+  const existing = cookieStore.get(CART_COOKIE)?.value;
+  if (existing) return existing;
+
+  const regionId = await getFirstRegionId();
+  const { cart } = await backendFetch("/store/carts", {
+    method: "POST",
+    body: JSON.stringify({ region_id: regionId }),
+  });
+
+  cookieStore.set(CART_COOKIE, cart.id, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  });
+
+  return cart.id;
+}
+
+export async function addToCart(variantId: string, quantity: number) {
+  const cartId = await getOrCreateCartId();
+
+  await backendFetch(`/store/carts/${cartId}/line-items`, {
     method: "POST",
     body: JSON.stringify({ variant_id: variantId, quantity }),
   });
@@ -45,16 +71,16 @@ export async function addToCart(variantId: string, quantity: number) {
 }
 
 export async function updateCartItem(itemId: string, quantity: number) {
-  const { getToken } = await auth();
-  const token = await getToken();
-  if (!token) throw new Error("Not authenticated");
+  const cookieStore = await cookies();
+  const cartId = cookieStore.get(CART_COOKIE)?.value;
+  if (!cartId) return;
 
   if (quantity <= 0) {
-    await backendFetch(`/store/carts/me/line-items/${itemId}`, token, {
+    await backendFetch(`/store/carts/${cartId}/line-items/${itemId}`, {
       method: "DELETE",
     });
   } else {
-    await backendFetch(`/store/carts/me/line-items/${itemId}`, token, {
+    await backendFetch(`/store/carts/${cartId}/line-items/${itemId}`, {
       method: "PATCH",
       body: JSON.stringify({ quantity }),
     });

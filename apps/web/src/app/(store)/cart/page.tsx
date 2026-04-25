@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 import { ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CartItemRow } from "@/components/store/CartItemRow";
@@ -10,9 +10,8 @@ import { formatPrice } from "@ecommerce/utils";
 export const metadata: Metadata = { title: "Cart" };
 
 export default async function CartPage() {
-  const { getToken } = await auth();
-  const token = await getToken();
-  const cart = token ? await getCart(token).catch(() => null) : null;
+  const cartId = (await cookies()).get("medusa_cart_id")?.value;
+  const cart = cartId ? await getCart(cartId).catch(() => null) : null;
 
   if (!cart || cart.items.length === 0) {
     return (

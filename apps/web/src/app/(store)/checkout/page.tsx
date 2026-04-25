@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { auth } from "@clerk/nextjs/server";
 import { CheckoutForm } from "@/components/store/CheckoutForm";
 import { getCart, createPaymentIntent } from "@/lib/api";
@@ -11,8 +12,11 @@ export default async function CheckoutPage() {
 
   if (!userId) redirect("/sign-in?redirect_url=/checkout");
 
-  const token = await getToken();
-  const cart = token ? await getCart(token).catch(() => null) : null;
+  const [token, cartId] = await Promise.all([
+    getToken(),
+    cookies().then((c) => c.get("medusa_cart_id")?.value),
+  ]);
+  const cart = cartId ? await getCart(cartId).catch(() => null) : null;
 
   if (!cart || cart.items.length === 0) redirect("/cart");
 

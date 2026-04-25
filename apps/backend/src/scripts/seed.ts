@@ -1,5 +1,5 @@
 import { ExecArgs } from "@medusajs/framework/types";
-import { IAuthModuleService, IProductModuleService } from "@medusajs/framework/types";
+import { IAuthModuleService, IProductModuleService, IRegionModuleService } from "@medusajs/framework/types";
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import { createUsersWorkflow } from "@medusajs/core-flows";
 import { setAuthAppMetadataStep } from "@medusajs/core-flows";
@@ -56,6 +56,24 @@ export default async function seedData({ container }: ExecArgs) {
     logger.warn(
       "SEED_ADMIN_EMAIL or SEED_ADMIN_PASSWORD not set — skipping admin creation."
     );
+  }
+
+  // ── Region ────────────────────────────────────────────────────────────────
+  const regionService: IRegionModuleService = container.resolve(Modules.REGION);
+
+  const existingRegions = await regionService.listRegions({});
+  if (existingRegions.length === 0) {
+    logger.info("Creating Australia region...");
+    await regionService.createRegions([
+      {
+        name: "Australia",
+        currency_code: "aud",
+        countries: ["au"],
+      },
+    ]);
+    logger.info("Australia region created.");
+  } else {
+    logger.info("Region already exists, skipping.");
   }
 
   // ── Products ───────────────────────────────────────────────────────────────
