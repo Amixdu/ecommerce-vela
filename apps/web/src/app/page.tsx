@@ -5,6 +5,7 @@ import { ShoppingCart, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { CartIcon } from "@/components/layout/CartIcon";
+import { FeaturedProducts } from "@/components/store/FeaturedProducts";
 
 export default async function HomePage() {
   const { userId } = auth();
@@ -79,6 +80,9 @@ export default async function HomePage() {
           )}
         </div>
       </main>
+
+      {/* Featured products marquee */}
+      <FeaturedProducts />
 
       {/* Footer strip */}
       <footer className="border-t border-border">
