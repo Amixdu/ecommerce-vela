@@ -37,7 +37,8 @@ function ProductStrip({ products }: { products: Product[] }) {
                   alt={product.title}
                   fill
                   className="object-cover transition-transform duration-700 hover:scale-105"
-                  sizes="226px"
+                  sizes="452px"
+                  quality={90}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center">
