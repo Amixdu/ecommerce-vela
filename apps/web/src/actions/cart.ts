@@ -81,7 +81,7 @@ export async function updateCartItem(itemId: string, quantity: number) {
     });
   } else {
     await backendFetch(`/store/carts/${cartId}/line-items/${itemId}`, {
-      method: "PATCH",
+      method: "POST",
       body: JSON.stringify({ quantity }),
     });
   }

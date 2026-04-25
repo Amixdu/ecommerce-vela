@@ -103,7 +103,7 @@ type MedusaCartLineItem = {
   thumbnail?: string | null;
   quantity: number;
   unit_price: number;
-  subtotal: number;
+  subtotal?: number | null;
 };
 type MedusaCart = {
   id: string;
@@ -136,7 +136,7 @@ function transformCart(c: MedusaCart): Cart {
         thumbnail: item.thumbnail ?? undefined,
         quantity: item.quantity,
         unitPrice: item.unit_price,
-        totalPrice: item.subtotal,
+        totalPrice: item.subtotal ?? item.unit_price * item.quantity,
         currency: c.currency_code,
       })
     ),

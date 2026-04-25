@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
+import { CartIcon } from "@/components/layout/CartIcon";
 
 export function Header() {
   return (
@@ -32,12 +34,15 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-            <Link href="/cart">
-              <ShoppingCart className="h-4 w-4" />
-              <span className="sr-only">Cart</span>
-            </Link>
-          </Button>
+          <Suspense
+            fallback={
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <ShoppingCart className="h-4 w-4" />
+              </Button>
+            }
+          >
+            <CartIcon />
+          </Suspense>
 
           <SignedOut>
             <Button asChild variant="outline" size="sm" className="text-xs tracking-wide uppercase h-8 px-4">

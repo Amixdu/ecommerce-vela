@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { ShoppingCart, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import { CartIcon } from "@/components/layout/CartIcon";
 
 export default async function HomePage() {
   const { userId } = auth();
@@ -29,12 +31,15 @@ export default async function HomePage() {
               Orders
             </Link>
           )}
-          <Button asChild variant="ghost" size="icon">
-            <Link href="/cart">
-              <ShoppingCart className="h-4 w-4" />
-              <span className="sr-only">Cart</span>
-            </Link>
-          </Button>
+          <Suspense
+            fallback={
+              <Button variant="ghost" size="icon">
+                <ShoppingCart className="h-4 w-4" />
+              </Button>
+            }
+          >
+            <CartIcon />
+          </Suspense>
           <SignedOut>
             <Button asChild variant="outline" size="sm">
               <Link href="/sign-in">Sign in</Link>
