@@ -7,10 +7,10 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: {
-    default: "E-Commerce Store",
-    template: "%s | E-Commerce Store",
+    default: "Vela",
+    template: "%s | Vela",
   },
-  description: "Modern e-commerce built with Next.js, Medusa, and Clerk.",
+  description: "Curated essentials for modern living.",
 };
 
 export default function RootLayout({

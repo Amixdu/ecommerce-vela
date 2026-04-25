@@ -5,7 +5,7 @@ export function formatPrice(
 ): string {
   return new Intl.NumberFormat(locale, {
     style: "currency",
-    currency: currency.toUpperCase(),
+    currency: (currency ?? "usd").toUpperCase(),
     minimumFractionDigits: 2,
   }).format(amount / 100);
 }

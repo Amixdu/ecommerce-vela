@@ -15,41 +15,35 @@ export function ProductCard({ product, className }: ProductCardProps) {
   return (
     <Link
       href={`/products/${product.handle}`}
-      className={cn(
-        "group block overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md",
-        className
-      )}
+      className={cn("group block overflow-hidden bg-background", className)}
     >
-      <div className="aspect-square overflow-hidden bg-secondary">
+      {/* Image */}
+      <div className="aspect-[3/4] overflow-hidden bg-secondary">
         {product.thumbnail ? (
           <Image
             src={product.thumbnail}
             alt={product.title}
-            width={400}
-            height={400}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            width={600}
+            height={800}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            No image
+          <div className="flex h-full items-center justify-center">
+            <span className="text-xs tracking-widest uppercase text-muted-foreground">
+              No image
+            </span>
           </div>
         )}
       </div>
+
+      {/* Info */}
       <div className="p-4">
-        <h3 className="font-semibold text-foreground line-clamp-1">
+        <h3 className="text-sm font-medium text-foreground line-clamp-1 group-hover:underline underline-offset-2">
           {product.title}
         </h3>
-        {product.description && (
-          <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-            {product.description}
-          </p>
-        )}
         {defaultVariant && (
-          <p className="mt-3 font-medium text-foreground">
-            {formatPrice(
-              defaultVariant.priceAmount,
-              defaultVariant.currency
-            )}
+          <p className="mt-1 text-sm text-muted-foreground">
+            {formatPrice(defaultVariant.priceAmount, defaultVariant.currency)}
           </p>
         )}
       </div>

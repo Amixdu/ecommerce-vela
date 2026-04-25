@@ -32,3 +32,6 @@ We are using a Turborepo monorepo, but with strict boundaries to allow future Po
 
 # Workflow
 - Run targeted tests over full suites: `npm run test -- <filename>`
+
+# Important
+Doo not try to read env files under any circumstance

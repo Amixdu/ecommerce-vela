@@ -1,9 +1,32 @@
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 import { SignUp } from "@clerk/nextjs";
+import Link from "next/link";
 
-export default function SignUpPage() {
+export default async function SignUpPage() {
+  const { userId } = await auth();
+  if (userId) redirect("/");
+
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <SignUp />
+    <div className="flex min-h-screen flex-col bg-background">
+      <div className="flex items-center justify-between px-6 py-5">
+        <Link
+          href="/"
+          className="text-sm font-black tracking-[0.25em] uppercase text-foreground hover:opacity-70 transition-opacity"
+        >
+          Vela
+        </Link>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center px-4 pb-16">
+        <div className="mb-8 text-center">
+          <h1 className="text-2xl font-bold tracking-tight">Create your account</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Join Vela and start shopping
+          </p>
+        </div>
+        <SignUp fallbackRedirectUrl="/" />
+      </div>
     </div>
   );
 }

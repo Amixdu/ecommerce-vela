@@ -23,6 +23,7 @@
     "@ecommerce/types": "*"
   },
   "devDependencies": {
+    "@medusajs/admin-sdk": "2.13.6",
     "@medusajs/cli": "2.13.6",
     "@types/node": "^20.14.0",
     "drizzle-kit": "^0.22.0",
