@@ -5,7 +5,11 @@ import {
   IRegionModuleService,
 } from "@medusajs/framework/types";
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
-import { createUsersWorkflow } from "@medusajs/core-flows";
+import {
+  createUsersWorkflow,
+  createProductsWorkflow,
+  deleteProductsWorkflow,
+} from "@medusajs/core-flows";
 import { setAuthAppMetadataStep } from "@medusajs/core-flows";
 
 const SIZE_S_TO_XL = ["S", "M", "L", "XL"];
@@ -26,8 +30,15 @@ function sizeVariants(
   }));
 }
 
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:9000";
+const img = (filename: string) => ({
+  thumbnail: `${BACKEND_URL}/static/${filename}`,
+  images: [{ url: `${BACKEND_URL}/static/${filename}` }],
+});
+
 export default async function seedData({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
+  const clean = process.env.SEED_CLEAN === "true";
 
   // ── Admin user ──────────────────────────────────────────────────────────────
   const adminEmail = process.env.SEED_ADMIN_EMAIL;
@@ -83,12 +94,30 @@ export default async function seedData({ container }: ExecArgs) {
     logger.info("Region already exists, skipping.");
   }
 
-  // ── Products ────────────────────────────────────────────────────────────────
+  // ── Clean ───────────────────────────────────────────────────────────────────
   const productService: IProductModuleService = container.resolve(
     Modules.PRODUCT
   );
 
-  // Idempotent category creation
+  if (clean) {
+    logger.info("SEED_CLEAN=true — wiping existing products and categories...");
+
+    const allProducts = await productService.listProducts({});
+    if (allProducts.length > 0) {
+      await deleteProductsWorkflow(container).run({
+        input: { ids: allProducts.map((p) => p.id) },
+      });
+      logger.info(`Deleted ${allProducts.length} products.`);
+    }
+
+    const allCats = await productService.listProductCategories({});
+    if (allCats.length > 0) {
+      await productService.deleteProductCategories(allCats.map((c) => c.id));
+      logger.info(`Deleted ${allCats.length} categories.`);
+    }
+  }
+
+  // ── Categories ──────────────────────────────────────────────────────────────
   const categoryDefs = [
     { name: "T-Shirts", handle: "t-shirts" },
     { name: "Hoodies & Sweatshirts", handle: "hoodies-sweatshirts" },
@@ -99,7 +128,6 @@ export default async function seedData({ container }: ExecArgs) {
 
   const existingCats = await productService.listProductCategories({});
   const existingCatHandles = new Set(existingCats.map((c) => c.handle));
-
   const toCreateCats = categoryDefs.filter(
     (c) => !existingCatHandles.has(c.handle)
   );
@@ -115,7 +143,7 @@ export default async function seedData({ container }: ExecArgs) {
     return [{ id: found.id }];
   };
 
-  // Idempotent product creation
+  // ── Products ────────────────────────────────────────────────────────────────
   const existingProducts = await productService.listProducts({});
   const existingHandles = new Set(existingProducts.map((p) => p.handle));
 
@@ -130,6 +158,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("t-shirts"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("CWT", 45),
+      ...img("whitetee.png"),
     },
     {
       title: "Essential Black Tee",
@@ -140,6 +169,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("t-shirts"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("EBT", 45),
+      ...img("blactee.png"),
     },
     {
       title: "Washed Grey Tee",
@@ -150,6 +180,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("t-shirts"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("WGT", 50),
+      ...img("greytee.png"),
     },
     {
       title: "Slate Blue Tee",
@@ -160,6 +191,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("t-shirts"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("SBT", 50),
+      ...img("bluetee.png"),
     },
     // ── Hoodies & Sweatshirts ─────────────────────────────────────────────────
     {
@@ -171,6 +203,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("hoodies-sweatshirts"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("HWH", 120),
+      ...img("heavyweighthoodie.png"),
     },
     {
       title: "Relaxed Crewneck",
@@ -181,6 +214,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("hoodies-sweatshirts"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("RCN", 95),
+      ...img("relaxedcrewneck.png"),
     },
     // ── Trousers ──────────────────────────────────────────────────────────────
     {
@@ -192,6 +226,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("trousers"),
       options: [{ title: "Size", values: WAIST_SIZES }],
       variants: sizeVariants("SCH", 110, WAIST_SIZES),
+      ...img("slim_chino.png"),
     },
     {
       title: "Linen Trousers",
@@ -202,6 +237,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("trousers"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("LT", 130),
+      ...img("linentrousers.png"),
     },
     // ── Outerwear ─────────────────────────────────────────────────────────────
     {
@@ -213,16 +249,18 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("outerwear"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("COS", 175),
+      ...img("canvasovershirt.png"),
     },
     {
-      title: "Merino Wool Cardigan",
-      handle: "merino-wool-cardigan",
+      title: "Waxed Cotton Jacket",
+      handle: "waxed-cotton-jacket",
       description:
-        "A fine-gauge merino cardigan with a relaxed, slightly oversized silhouette. Naturally temperature-regulating.",
+        "A rugged waxed cotton jacket with a storm collar and two chest pockets. Water-resistant, windproof, and gets better with age.",
       status: "published" as const,
       categories: cat("outerwear"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
-      variants: sizeVariants("MWC", 155),
+      variants: sizeVariants("WCJ", 245),
+      ...img("jacket.png"),
     },
     // ── Accessories ───────────────────────────────────────────────────────────
     {
@@ -234,16 +272,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("accessories"),
       options: [{ title: "Size", values: ["One Size"] }],
       variants: sizeVariants("CT", 55, ["One Size"]),
-    },
-    {
-      title: "Leather Card Holder",
-      handle: "leather-card-holder",
-      description:
-        "Full-grain vegetable-tanned leather that develops a patina over time. Holds up to 6 cards.",
-      status: "published" as const,
-      categories: cat("accessories"),
-      options: [{ title: "Size", values: ["One Size"] }],
-      variants: sizeVariants("LCH", 65, ["One Size"]),
+      ...img("canvastote.png"),
     },
   ];
 
@@ -253,7 +282,9 @@ export default async function seedData({ container }: ExecArgs) {
     logger.info("All products already exist, skipping.");
   } else {
     logger.info(`Creating ${toCreate.length} products...`);
-    await productService.createProducts(toCreate);
+    await createProductsWorkflow(container).run({
+      input: { products: toCreate },
+    });
     logger.info("Products created.");
   }
 

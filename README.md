@@ -1,6 +1,6 @@
-# E-Commerce Monorepo
+# Vela — E-Commerce Monorepo
 
-A full-stack e-commerce platform with a web storefront, mobile app, and headless backend. Built as a **loosely-coupled Turborepo monorepo** — each app is independently deployable and can be extracted into its own repository without changes.
+A full-stack e-commerce storefront with a Next.js web app, Expo mobile app, and Medusa.js v2 backend. Built as a **loosely-coupled Turborepo monorepo** — each app is independently deployable and can be extracted into its own repository without changes.
 
 ## Table of Contents
 
@@ -9,6 +9,8 @@ A full-stack e-commerce platform with a web storefront, mobile app, and headless
 - [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
+- [Medusa Admin Setup](#medusa-admin-setup)
+- [Seeding](#seeding)
 - [Environment Variables](#environment-variables)
 - [Development Workflow](#development-workflow)
 - [Database](#database)
@@ -40,7 +42,7 @@ A full-stack e-commerce platform with a web storefront, mobile app, and headless
 ## Repository Structure
 
 ```
-ecommerce/
+ecommerce-vela/
 ├── apps/
 │   ├── backend/           # Medusa.js v2 API server (port 9000)
 │   ├── web/               # Next.js storefront (port 3000)
@@ -67,7 +69,7 @@ apps/backend/
 │   │   ├── schema.ts                  # Drizzle schema (custom tables)
 │   │   └── index.ts                   # Drizzle client
 │   └── scripts/
-│       └── seed.ts                    # Product seed data
+│       └── seed.ts                    # Product + admin seed script
 ├── medusa-config.ts                   # Medusa project config
 ├── drizzle.config.ts                  # Drizzle Kit config
 └── Dockerfile                         # Production image (build from repo root)
@@ -81,38 +83,29 @@ apps/web/src/
 │   ├── (auth)/                        # Sign-in / sign-up (Clerk)
 │   ├── (store)/                       # Store layout with header
 │   │   ├── products/                  # Product listing + detail
-│   │   ├── cart/                      # Cart page (RSC)
+│   │   ├── cart/                      # Cart page (RSC, cookie-based)
 │   │   ├── checkout/                  # Checkout page (RSC + Stripe)
 │   │   └── orders/                    # Order history (protected)
 │   ├── layout.tsx                     # Root layout — ClerkProvider
-│   └── page.tsx                       # Landing page
+│   └── page.tsx                       # Landing page with featured products
 ├── actions/
 │   ├── cart.ts                        # Server Actions: add / update / remove
 │   └── checkout.ts                    # Server Action: complete order
 ├── components/
-│   ├── layout/Header.tsx
-│   ├── store/                         # ProductCard, AddToCartButton, etc.
+│   ├── layout/
+│   │   ├── Header.tsx                 # Sticky nav with cart badge
+│   │   └── CartIcon.tsx               # Cart icon with item count bubble
+│   ├── store/
+│   │   ├── ProductCard.tsx
+│   │   ├── AddToCartButton.tsx        # With "Added to Bag" success state
+│   │   ├── FeaturedProducts.tsx       # Animated marquee on home page
+│   │   ├── CartItemRow.tsx
+│   │   └── CheckoutForm.tsx
 │   └── ui/                            # shadcn/ui components
 ├── lib/
-│   ├── api.ts                         # Fetch helpers for backend calls
+│   ├── api.ts                         # Fetch helpers + Medusa response transforms
 │   └── utils.ts                       # cn() utility
 └── middleware.ts                      # Clerk route protection
-```
-
-### `apps/mobile`
-
-```
-apps/mobile/
-├── app/
-│   ├── _layout.tsx                    # Root — ClerkProvider + expo-router
-│   ├── (tabs)/                        # Tab navigator
-│   │   ├── index.tsx                  # Products list
-│   │   ├── cart.tsx                   # Cart
-│   │   └── account.tsx                # Profile / sign-out
-│   ├── (auth)/                        # Sign-in / sign-up screens
-│   └── products/[id].tsx              # Product detail
-└── src/hooks/
-    └── useCart.ts                     # Cart data hook
 ```
 
 ### `packages/`
@@ -120,7 +113,7 @@ apps/mobile/
 | Package | Purpose |
 |---|---|
 | `@ecommerce/types` | Shared TypeScript interfaces: `Product`, `Cart`, `Order`, `User`, `ApiResponse` |
-| `@ecommerce/utils` | Pure functions: `formatPrice`, `formatDate`, `slugify`, `isValidEmail`, cart helpers |
+| `@ecommerce/utils` | Pure functions: `formatPrice`, `formatDate`, `slugify`, `truncateText` |
 
 ---
 
@@ -134,8 +127,8 @@ apps/mobile/
 ┌─────────────┐     HTTP      ┌──────────────────┐
 │  apps/web   │ ──────────── ▶│  apps/backend    │
 └─────────────┘               │  (Medusa v2)     │
-                               │                  │
-┌─────────────┐     HTTP      │  :9000           │
+                               │  :9000           │
+┌─────────────┐     HTTP      │                  │
 │ apps/mobile │ ──────────── ▶│                  │
 └─────────────┘               └──────────────────┘
                                         │
@@ -145,27 +138,17 @@ apps/mobile/
                                └──────────────────┘
 ```
 
-### Shared packages are strictly limited
+### Cart is anonymous and cookie-based
 
-`packages/` contains **only**:
-- TypeScript type definitions (no runtime behaviour)
-- Pure utility functions (no framework dependencies)
+Medusa v2 carts are not tied to a user session. A cart is created on first "Add to Bag", and its ID is stored in a `medusa_cart_id` HTTP-only cookie. The cart persists for 7 days. Authentication is only required for checkout and order history.
 
-No shared UI components. `shadcn/ui` components live in `apps/web/src/components/ui/` and are not shared with mobile.
+### Prices are stored in major currency units
 
-### Each app is self-sufficient
+Medusa v2 stores and returns prices in the **major currency unit** (e.g. `25` = AUD 25.00), not cents. `formatPrice()` in `@ecommerce/utils` renders them directly without dividing by 100.
 
-Each app has its own `tsconfig.json`, `eslint` config, and `.env` file. Nothing is hoisted to the root that would prevent an app from being moved to its own repository.
+### Medusa response transforms
 
-### Custom Drizzle tables alongside Medusa
-
-Medusa v2 manages its own ORM (MikroORM) for core e-commerce tables. Drizzle ORM is used for three additional tables that extend Medusa's model:
-
-| Table | Purpose |
-|---|---|
-| `custom_customers` | Bridges a Clerk user ID to a Medusa customer ID |
-| `wishlists` | Per-customer product wishlist (not in Medusa core) |
-| `product_reviews` | Product ratings and reviews |
+`apps/web/src/lib/api.ts` contains transform functions that map Medusa's snake_case API responses (with nested `prices` arrays, etc.) to the clean camelCase types in `@ecommerce/types`. Nothing else in the web app knows about Medusa's internal shape.
 
 ---
 
@@ -183,8 +166,8 @@ Medusa v2 manages its own ORM (MikroORM) for core e-commerce tables. Drizzle ORM
 ### 1. Clone and install
 
 ```bash
-git clone <repo-url> ecommerce
-cd ecommerce
+git clone <repo-url> ecommerce-vela
+cd ecommerce-vela
 npm install
 ```
 
@@ -194,53 +177,102 @@ npm install
 npm run db:up
 ```
 
-This starts PostgreSQL on port `5432` and Redis on port `6379` via Docker Compose. Data is persisted in named Docker volumes between restarts.
+Starts PostgreSQL on port `5432` and Redis on port `6379` via Docker Compose. Data persists in named Docker volumes between restarts.
 
 ### 3. Configure environment variables
 
-Copy the templates and fill in your credentials:
-
 ```bash
-# Backend
 cp apps/backend/.env.template apps/backend/.env
-
-# Web
 cp apps/web/.env.local.template apps/web/.env.local
-
-# Mobile
-cp apps/mobile/.env.template apps/mobile/.env
 ```
 
-See [Environment Variables](#environment-variables) for details on each value.
+Fill in your Clerk keys, Stripe keys, and Medusa secrets. See [Environment Variables](#environment-variables).
 
 ### 4. Run database migrations
 
 ```bash
-cd apps/backend
-npm run db:migrate      # Applies Medusa's built-in migrations
-npm run db:push         # Applies custom Drizzle schema
+cd apps/backend && npx medusa db:migrate
 ```
 
-### 5. Seed sample data (optional)
+### 5. Start the apps
 
 ```bash
-cd apps/backend
-npm run seed
-```
-
-This creates two product categories and four product variants to get you started.
-
-### 6. Start the apps
-
-Open three terminal tabs from the monorepo root:
-
-```bash
-npm run dev:backend     # Medusa API on http://localhost:9000
+# From the monorepo root — open separate terminals for each
+npm run dev:backend     # Medusa API + admin on http://localhost:9000
 npm run dev:web         # Next.js storefront on http://localhost:3000
-npm run dev:mobile      # Expo dev server (scan QR to open on device)
 ```
 
-The Medusa admin dashboard is available at `http://localhost:9000/app`.
+### 6. Complete Medusa admin setup
+
+See [Medusa Admin Setup](#medusa-admin-setup) — required before the storefront works.
+
+### 7. Seed products
+
+```bash
+cd apps/backend && SEED_CLEAN=true npx medusa exec ./src/scripts/seed.ts
+```
+
+See [Seeding](#seeding) for details.
+
+---
+
+## Medusa Admin Setup
+
+The Medusa admin runs at `http://localhost:9000/app`. Several one-time steps are required after first launch.
+
+### Create an admin account
+
+```bash
+cd apps/backend && npx medusa user -e your@email.com -p yourpassword
+```
+
+Or set `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` in `.env` and run the seeder — it creates the admin automatically.
+
+### Add AUD as a store currency
+
+1. Admin → **Settings → Store → Currencies**
+2. Search for **Australian Dollar (AUD)** and enable it
+
+### Create a region
+
+1. Admin → **Settings → Regions → Add Region**
+2. Name: `Australia`, Currency: `AUD`, Countries: `Australia`
+
+### Create a sales channel and publishable API key
+
+1. Admin → **Settings → Sales Channels** → create a channel (e.g. "Web Store")
+2. Admin → **Settings → API Keys** → create a publishable key → copy it
+3. Add it to `apps/web/.env.local` as `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=pk_...`
+4. Link the key to the sales channel: API Keys → select key → **Sales Channels** → toggle your channel on
+
+Without these steps the storefront will return `Publishable API key required` errors.
+
+---
+
+## Seeding
+
+The seed script (`apps/backend/src/scripts/seed.ts`) creates:
+
+- An admin user (from `SEED_ADMIN_EMAIL` + `SEED_ADMIN_PASSWORD` in `.env`)
+- An Australia/AUD region (if none exists)
+- 5 product categories: T-Shirts, Hoodies & Sweatshirts, Trousers, Outerwear, Accessories
+- 12 products with size variants and AUD prices
+
+### Normal run (idempotent — skips existing data)
+
+```bash
+cd apps/backend && npx medusa exec ./src/scripts/seed.ts
+```
+
+### Full clean + re-seed
+
+Wipes all products and categories, then re-creates them. **Admin user and region are preserved.**
+
+```bash
+cd apps/backend && SEED_CLEAN=true npx medusa exec ./src/scripts/seed.ts
+```
+
+> After seeding, go to the Medusa admin and link the seeded products to your sales channel: **Products → select all → Sales Channels → toggle on**.
 
 ---
 
@@ -251,13 +283,16 @@ The Medusa admin dashboard is available at `http://localhost:9000/app`.
 | Variable | Description |
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string. Default matches `docker-compose.yml`: `postgres://postgres:password@localhost:5432/ecommerce` |
-| `JWT_SECRET` | Min 32-character secret for Medusa JWT tokens |
-| `COOKIE_SECRET` | Min 32-character secret for Medusa session cookies |
+| `JWT_SECRET` | Min 32-char secret for Medusa JWT tokens |
+| `COOKIE_SECRET` | Min 32-char secret for Medusa session cookies |
 | `CLERK_SECRET_KEY` | Clerk secret key (`sk_test_…`) — used to verify tokens from web/mobile |
 | `CLERK_PUBLISHABLE_KEY` | Clerk publishable key (`pk_test_…`) |
 | `STRIPE_SECRET_KEY` | Stripe secret key (`sk_test_…`) |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_…`) |
 | `REDIS_URL` | Redis connection string. Default: `redis://localhost:6379` |
+| `SEED_ADMIN_EMAIL` | Email for the admin account created by the seeder |
+| `SEED_ADMIN_PASSWORD` | Password for the admin account created by the seeder |
+| `SEED_CLEAN` | Set to `"true"` to wipe products/categories before seeding |
 
 ### `apps/web/.env.local`
 
@@ -272,28 +307,19 @@ The Medusa admin dashboard is available at `http://localhost:9000/app`.
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (`pk_test_…`) |
 | `NEXT_PUBLIC_BACKEND_URL` | Backend URL for client-side fetches. Default: `http://localhost:9000` |
 | `BACKEND_URL` | Backend URL for server-side fetches (RSC / Server Actions). Default: `http://localhost:9000` |
-
-### `apps/mobile/.env`
-
-| Variable | Description |
-|---|---|
-| `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
-| `EXPO_PUBLIC_BACKEND_URL` | Backend URL. Default: `http://localhost:9000` |
-
-> **Note:** On a physical device, `localhost` resolves to the device itself, not your machine. Use your machine's local network IP (e.g. `http://192.168.1.x:9000`).
+| `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` | Medusa publishable API key — generate in admin: Settings → API Keys |
+| `NEXT_PUBLIC_STORE_CURRENCY` | Default currency code for price display (e.g. `aud`). Used to select the correct price when a product has multiple currencies. |
 
 ---
 
 ## Development Workflow
 
-### All commands are run from the monorepo root
-
 ```bash
-# Start infrastructure (database + redis)
+# Start infrastructure (PostgreSQL + Redis)
 npm run db:up
 
 # Start individual apps
-npm run dev:backend      # Medusa on :9000
+npm run dev:backend      # Medusa on :9000 (includes admin at /app)
 npm run dev:web          # Next.js on :3000
 npm run dev:mobile       # Expo
 
@@ -303,32 +329,10 @@ npm run db:down          # Stop containers (data preserved)
 npm run db:reset         # Stop containers AND wipe volumes
 npm run db:logs          # Tail PostgreSQL container logs
 
-# Build all apps
+# Build / lint / test (run from monorepo root)
 npm run build
-
-# Lint all apps
 npm run lint
-
-# Run tests (pass a filename to target: npm run test -- cart.test.ts)
-npm run test
-```
-
-### Turbo task graph
-
-Turborepo caches task outputs and only re-runs tasks when inputs change. The dependency graph is:
-
-```
-build
-  └── depends on ^build (shared packages build before apps)
-
-test
-  └── depends on ^build
-
-lint
-  └── depends on ^lint
-
-dev / db:studio
-  └── persistent (never cached)
+npm run test             # Target a file: npm run test -- cart.test.ts
 ```
 
 ---
@@ -337,95 +341,74 @@ dev / db:studio
 
 ### Local setup
 
-PostgreSQL runs in Docker. The `docker-compose.yml` at the repo root defines the service:
+PostgreSQL runs in Docker:
 
 - **Host:** `localhost:5432`
-- **User:** `postgres`
-- **Password:** `password`
+- **User:** `postgres` / **Password:** `password`
 - **Database:** `ecommerce`
 
-Data is stored in the `postgres_data` named volume and survives container restarts. Use `npm run db:reset` to wipe it completely.
+Use `npm run db:reset` to wipe all data and start fresh.
 
 ### Migrations
 
-Medusa manages its own tables via its internal migration system:
-
 ```bash
-cd apps/backend && npm run db:migrate
+# Medusa's built-in tables
+cd apps/backend && npx medusa db:migrate
+
+# Custom Drizzle tables (after editing src/db/schema.ts)
+cd apps/backend && npm run db:generate   # generate migration file
+cd apps/backend && npm run db:push       # apply to database
 ```
 
-Custom Drizzle tables are managed separately:
+### Custom Drizzle schema
 
-```bash
-# Generate a new migration after editing src/db/schema.ts
-cd apps/backend && npm run db:generate
+Three tables extend Medusa's core model:
 
-# Apply pending migrations
-cd apps/backend && npm run db:push
-```
-
-### Custom schema (`apps/backend/src/db/schema.ts`)
-
-```
-custom_customers
-  id            text  PK
-  clerk_id      text  UNIQUE  ← Clerk user ID
-  medusa_customer_id  text   ← Links to Medusa's customer record
-  email         text  UNIQUE
-  first_name    text
-  last_name     text
-  phone         text
-  created_at    timestamp
-  updated_at    timestamp
-
-wishlists
-  id            text  PK
-  customer_id   text  FK → custom_customers.id  (CASCADE DELETE)
-  product_id    text  ← Medusa product ID
-  variant_id    text
-  created_at    timestamp
-
-product_reviews
-  id            text  PK
-  product_id    text  ← Medusa product ID
-  customer_id   text  FK → custom_customers.id  (CASCADE DELETE)
-  rating        integer  (1–5)
-  title         text
-  body          text
-  is_verified_purchase  boolean
-  metadata      jsonb
-  created_at    timestamp
-  updated_at    timestamp
-```
-
-### Seeding
-
-```bash
-cd apps/backend && npm run seed
-```
-
-The seed script (`src/scripts/seed.ts`) uses Medusa's product module service to create a "T-Shirts" category with two products (Classic White Tee, Essential Black Tee) in S/M/L variants at $25.00 each.
+| Table | Purpose |
+|---|---|
+| `custom_customers` | Bridges a Clerk user ID to a Medusa customer ID |
+| `wishlists` | Per-customer product wishlist |
+| `product_reviews` | Product ratings and reviews |
 
 ---
 
 ## API Reference
 
-The backend exposes Medusa's full Store API at `/store/*` plus custom routes:
+The backend exposes Medusa's full Store API at `/store/*` plus custom routes.
 
-### Medusa Store API (built-in)
+All store API requests must include the publishable API key header:
+```
+x-publishable-api-key: pk_...
+```
+
+### Cart API
+
+Carts are anonymous and identified by cart ID, not by user session.
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/store/carts` | Create a new cart. Body: `{ region_id }` |
+| `GET` | `/store/carts/:id` | Get cart by ID |
+| `POST` | `/store/carts/:id/line-items` | Add item. Body: `{ variant_id, quantity }` |
+| `POST` | `/store/carts/:id/line-items/:item_id` | Update item quantity. Body: `{ quantity }` |
+| `DELETE` | `/store/carts/:id/line-items/:item_id` | Remove item |
+
+### Product API
 
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/store/products` | List products. Supports `?q=`, `?category_id=`, `?limit=`, `?offset=` |
-| `GET` | `/store/products/:id` | Get a single product by ID |
-| `GET` | `/store/products?handle=:handle` | Get a product by handle (slug) |
-| `GET` | `/store/carts/me` | Get the current user's cart |
-| `POST` | `/store/carts/me/line-items` | Add an item to cart |
-| `PATCH` | `/store/carts/me/line-items/:id` | Update item quantity |
-| `DELETE` | `/store/carts/me/line-items/:id` | Remove an item from cart |
-| `POST` | `/store/orders` | Complete checkout and create an order |
+| `GET` | `/store/products?handle=:handle` | Get product by URL handle |
+| `GET` | `/store/regions` | List available regions |
+
+Append `&fields=*variants.prices,*categories` to product requests to include prices and categories.
+
+### Orders API (auth required)
+
+| Method | Path | Description |
+|---|---|---|
 | `GET` | `/store/orders` | List orders for the authenticated customer |
-| `POST` | `/store/payment-intents` | Create a Stripe PaymentIntent |
+| `POST` | `/store/orders` | Complete checkout and create an order |
 
 ### Custom routes
 
@@ -434,12 +417,10 @@ The backend exposes Medusa's full Store API at `/store/*` plus custom routes:
 | `GET` | `/store/wishlist` | Required | Get wishlist for authenticated customer |
 | `POST` | `/store/wishlist` | Required | Add a product to wishlist |
 | `DELETE` | `/store/wishlist` | Required | Remove a product from wishlist |
-| `GET` | `/store/reviews/:productId` | None | Get reviews + aggregate stats for a product |
+| `GET` | `/store/reviews/:productId` | None | Get reviews + aggregate stats |
 | `POST` | `/store/reviews/:productId` | Required | Submit a review |
 
-### Authentication header
-
-Protected routes require a Clerk session token as a Bearer token:
+### Authentication header (protected routes)
 
 ```
 Authorization: Bearer <clerk-session-token>
@@ -449,29 +430,19 @@ Authorization: Bearer <clerk-session-token>
 
 ## Authentication
 
-Authentication is handled by [Clerk](https://clerk.com) across all three apps.
+Authentication is handled by [Clerk](https://clerk.com).
 
 ### Web (`apps/web`)
 
-- `ClerkProvider` wraps the root layout (`src/app/layout.tsx`)
-- `clerkMiddleware` in `src/middleware.ts` protects `/checkout`, `/orders`, and `/account` — unauthenticated visitors are redirected to `/sign-in`
-- Hosted Clerk UI components (`<SignIn />`, `<SignUp />`) are rendered at `/sign-in` and `/sign-up`
-- `<UserButton />` in the header handles session management
-- Server Components and Server Actions call `auth()` from `@clerk/nextjs/server` to get the session token, which is forwarded to the backend as a Bearer token
-
-### Mobile (`apps/mobile`)
-
-- `ClerkProvider` wraps the root layout (`app/_layout.tsx`)
-- Session tokens are stored securely with `expo-secure-store` via a custom `tokenCache`
-- `useAuth()` and `useUser()` hooks provide auth state throughout the app
-- Sign-in and sign-up are custom screens (`app/(auth)/`) using Clerk's `useSignIn` / `useSignUp` hooks with email verification
+- `ClerkProvider` wraps the root layout
+- `clerkMiddleware` in `src/middleware.ts` protects `/checkout`, `/orders`, `/account`
+- `auth()` from `@clerk/nextjs/server` is called in Server Components and Server Actions to get the session token
+- Clerk sends transactional emails automatically (sign-in alerts, verification). In development these come from `noreply@accounts.dev`. In production, configure a custom sender domain in the Clerk dashboard.
 
 ### Backend (`apps/backend`)
 
-- The backend does **not** use Clerk's hosted sessions — it only verifies tokens
-- `requireClerkAuth` middleware (`src/api/middlewares.ts`) calls `clerk.verifyToken()` from `@clerk/backend` to validate the Bearer token
-- The verified `clerkUserId` (`sub` claim) is attached to the request for downstream handlers
-- **Never mock Clerk auth headers manually.** In tests, use Clerk's official testing tokens from `.env.local`
+- `requireClerkAuth` middleware (`src/api/middlewares.ts`) calls `clerk.verifyToken()` to validate incoming Bearer tokens
+- **Never mock Clerk auth headers manually.** Use Clerk's official testing tokens in `.env.local`.
 
 ---
 
@@ -482,19 +453,14 @@ Payments use [Stripe](https://stripe.com) with Stripe Elements.
 ### Flow
 
 ```
-1. Checkout page (RSC) calls backend → creates a Stripe PaymentIntent
-2. PaymentIntent clientSecret is passed as a prop to <CheckoutForm> (client component)
-3. Stripe Elements renders the payment form client-side
-4. On submit, stripe.confirmPayment() is called — Stripe handles the card data
-5. On success, the completeCheckout Server Action is called with the PaymentIntent ID
-6. Server Action calls backend → creates the Medusa order
+1. Checkout page (RSC) → backend creates a Stripe PaymentIntent
+2. clientSecret passed to <CheckoutForm> (client component)
+3. Stripe Elements renders the payment UI client-side
+4. stripe.confirmPayment() — card data goes directly to Stripe, never to app servers
+5. On success → completeCheckout Server Action → backend creates Medusa order
 ```
 
-### Security rules
-
-- **Never store or log Stripe PANs (card numbers).** Raw card data never touches application code — it goes directly from the browser to Stripe's servers via Stripe Elements.
-- Stripe webhook events are verified using the `STRIPE_WEBHOOK_SECRET` before processing.
-- The Stripe secret key (`sk_*`) is server-side only and never exposed to the browser.
+**Never store or log card numbers (PANs).** Raw card data never touches application code.
 
 ---
 
@@ -502,13 +468,10 @@ Payments use [Stripe](https://stripe.com) with Stripe Elements.
 
 ### Backend Docker image
 
-The `Dockerfile` in `apps/backend/` uses a three-stage build. The build context must be the **monorepo root** because the backend depends on `packages/types` and `packages/utils`.
-
 ```bash
-# Build from the repo root
-docker build -f apps/backend/Dockerfile -t ecommerce-backend .
+# Build from the repo root (monorepo context required)
+docker build -f apps/backend/Dockerfile -t vela-backend .
 
-# Run (inject secrets via environment variables — never bake into image)
 docker run \
   -e DATABASE_URL="postgres://..." \
   -e JWT_SECRET="..." \
@@ -517,81 +480,46 @@ docker run \
   -e STRIPE_SECRET_KEY="sk_live_..." \
   -e STRIPE_WEBHOOK_SECRET="whsec_..." \
   -p 9000:9000 \
-  ecommerce-backend
+  vela-backend
 ```
 
-**Build stages:**
-
-| Stage | Base | Purpose |
-|---|---|---|
-| `deps` | `node:20-alpine` | Installs all workspace dependencies. Layer is cached until a `package.json` changes. |
-| `builder` | `deps` | Copies source, builds shared packages, runs `medusa build` → outputs self-contained bundle to `.medusa/server/` |
-| `runner` | `node:20-alpine` | Copies only `.medusa/server/`, installs production deps, exposes port 9000 |
-
-The final image contains no TypeScript compiler, no dev dependencies, and no source files outside the bundle.
-
-### Web (`apps/web`)
+### Web
 
 ```bash
-cd apps/web
-npm run build
-npm run start
+cd apps/web && npm run build && npm run start
 ```
 
-Or deploy directly to Vercel — the project root is `apps/web`.
+Or deploy to Vercel with project root set to `apps/web`.
 
-### Mobile (`apps/mobile`)
+### Mobile
 
 ```bash
-cd apps/mobile
-npx expo build       # Classic build
-# or
-npx eas build        # EAS Build (recommended)
+cd apps/mobile && npx eas build
 ```
 
 ---
 
 ## Project Conventions
 
-### React Server Components first
+### RSC first, `'use client'` at the leaves
 
-All Next.js pages and layouts are Server Components by default. `'use client'` is added only at the lowest possible leaf component — typically interactive elements like buttons and forms that need `useState`, `useTransition`, or browser event handlers.
+All Next.js pages and layouts are Server Components by default. `'use client'` is added only to interactive leaf components (`AddToCartButton`, `CartItemRow`, `CheckoutForm`).
 
-```
-Page (RSC) → fetches data, passes to →
-  Layout (RSC) →
-    ProductCard (RSC) → static display
-    AddToCartButton ('use client') → needs useTransition + Server Action
-```
+### Server Actions for mutations
 
-### Data mutation via Server Actions
-
-Form submissions and cart mutations use Next.js Server Actions (`src/actions/`). These run on the server, call the backend API with the Clerk token, then call `revalidatePath()` to refresh the relevant RSC data.
-
-### API calls from Server Components
-
-`src/lib/api.ts` contains fetch helpers used by Server Components. They read `BACKEND_URL` (the private env var) so requests go directly server-to-server in production, bypassing the public internet.
-
-### Type safety across the stack
-
-Shared types in `@ecommerce/types` are the single source of truth for API request/response shapes. The backend routes, web `lib/api.ts`, and mobile fetch calls all import from the same types package.
+Cart and checkout mutations use Next.js Server Actions (`src/actions/`). They call the backend, then call `revalidatePath()` to refresh the relevant page data.
 
 ### No cross-app imports
 
 ```
-✅ apps/web imports from @ecommerce/types
-✅ apps/web imports from @ecommerce/utils
-✅ apps/web calls apps/backend via HTTP
+✅ apps/web   → @ecommerce/types, @ecommerce/utils, HTTP to apps/backend
+✅ apps/mobile → @ecommerce/types, @ecommerce/utils, HTTP to apps/backend
 
-❌ apps/web imports from apps/backend
-❌ apps/mobile imports from apps/web
-❌ packages/types imports from any app
+❌ apps/web   → apps/backend  (direct file import)
+❌ apps/mobile → apps/web
+❌ packages/* → any app
 ```
 
-### shadcn/ui components stay in `apps/web`
+### shadcn/ui stays in `apps/web`
 
-`apps/web/src/components/ui/` holds the shadcn/ui component library. These are not moved to `packages/` because they depend on React DOM and Tailwind — things the mobile app doesn't use.
-
-### Environment variables are never shared
-
-Each app manages its own `.env` file. There is no root `.env`. This ensures apps remain portable.
+`apps/web/src/components/ui/` holds the shadcn/ui components. They are not in `packages/` because they depend on React DOM and Tailwind — not usable in the mobile app.
