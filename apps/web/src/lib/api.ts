@@ -72,7 +72,7 @@ function transformProduct(p: MedusaProduct): Product {
     handle: p.handle,
     description: p.description ?? undefined,
     status: p.status as ProductStatus,
-    thumbnail: p.thumbnail ?? undefined,
+    thumbnail: p.thumbnail ?? p.images?.[0]?.url ?? undefined,
     images: (p.images ?? []).map((img) => ({
       id: img.id,
       url: img.url,
