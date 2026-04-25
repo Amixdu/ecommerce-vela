@@ -6,10 +6,10 @@ export default function StoreLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
       <Header />
-      <main className="flex-1">{children}</main>
-      <footer className="border-t border-border">
+      <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+      <footer className="shrink-0 border-t border-border">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-6 sm:px-6 lg:px-8">
           <span className="text-xs font-black tracking-[0.25em] uppercase text-foreground">
             Vela

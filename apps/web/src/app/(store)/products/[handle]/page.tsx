@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { cookies } from "next/headers";
 import type { Product } from "@ecommerce/types";
 import { formatPrice } from "@ecommerce/utils";
-import { getProductByHandle } from "@/lib/api";
+import { getProductByHandle, getCart } from "@/lib/api";
 import { AddToCartButton } from "@/components/store/AddToCartButton";
 
 interface Props {
@@ -18,8 +19,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ProductDetailPage({ params }: Props) {
-  const product: Product | null = await getProductByHandle(params.handle).catch(() => null);
+  const cookieStore = await cookies();
+  const cartId = cookieStore.get("medusa_cart_id")?.value;
+
+  const [product, cart] = await Promise.all([
+    getProductByHandle(params.handle).catch(() => null),
+    cartId ? getCart(cartId).catch(() => null) : Promise.resolve(null),
+  ]);
+
   if (!product) notFound();
+
+  const cartItems: Record<string, number> = {};
+  cart?.items.forEach((item) => {
+    cartItems[item.variantId] = (cartItems[item.variantId] ?? 0) + item.quantity;
+  });
 
   const defaultVariant = product.variants[0];
 
@@ -78,7 +91,7 @@ export default async function ProductDetailPage({ params }: Props) {
           )}
 
           <div className="mt-10 border-t border-border pt-8">
-            <AddToCartButton product={product} />
+            <AddToCartButton product={product} cartItems={cartItems} />
           </div>
 
           {/* Trust signals */}

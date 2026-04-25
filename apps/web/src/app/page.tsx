@@ -10,12 +10,11 @@ import { getProducts } from "@/lib/api";
 import type { Product } from "@ecommerce/types";
 
 function ProductStrip({ products }: { products: Product[] }) {
-  // Duplicate for seamless loop
   const tiles = [...products, ...products];
 
   return (
     <div
-      className="relative w-full overflow-hidden"
+      className="relative h-full w-full overflow-hidden"
       style={{
         WebkitMaskImage:
           "linear-gradient(to right, transparent, black 6%, black 94%, transparent)",
@@ -23,13 +22,13 @@ function ProductStrip({ products }: { products: Product[] }) {
           "linear-gradient(to right, transparent, black 6%, black 94%, transparent)",
       }}
     >
-      <div className="group flex gap-3">
-        <div className="flex animate-marquee-reverse gap-3 group-hover:[animation-play-state:paused]">
+      <div className="group flex h-full gap-3">
+        <div className="flex h-full animate-marquee-reverse gap-3 group-hover:[animation-play-state:paused]">
           {tiles.map((product, i) => (
             <Link
               key={`${product.id}-${i}`}
               href={`/products/${product.handle}`}
-              className="relative h-[260px] w-[174px] flex-shrink-0 overflow-hidden bg-secondary sm:h-[340px] sm:w-[226px]"
+              className="relative h-full w-[174px] flex-shrink-0 overflow-hidden bg-secondary sm:w-[220px]"
             >
               {product.thumbnail ? (
                 <Image
@@ -37,7 +36,7 @@ function ProductStrip({ products }: { products: Product[] }) {
                   alt={product.title}
                   fill
                   className="object-cover transition-transform duration-700 hover:scale-105"
-                  sizes="452px"
+                  sizes="440px"
                   quality={90}
                 />
               ) : (
@@ -47,9 +46,8 @@ function ProductStrip({ products }: { products: Product[] }) {
                   </span>
                 </div>
               )}
-              {/* Product name on hover */}
-              <div className="absolute inset-x-0 bottom-0 translate-y-full bg-foreground/90 px-3 py-2 transition-transform duration-300 hover:translate-y-0 group-hover:translate-y-0">
-                <p className="text-[10px] font-medium tracking-wide text-white truncate">
+              <div className="absolute inset-x-0 bottom-0 translate-y-full bg-foreground/90 px-3 py-2 transition-transform duration-300 hover:translate-y-0">
+                <p className="truncate text-[10px] font-medium tracking-wide text-white">
                   {product.title}
                 </p>
               </div>
@@ -67,9 +65,9 @@ export default async function HomePage() {
   const products = data?.products ?? [];
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
       {/* Nav */}
-      <header className="flex items-center justify-between px-6 py-5 sm:px-10">
+      <header className="flex shrink-0 items-center justify-between px-6 py-4 sm:px-10">
         <span className="text-lg font-black tracking-[0.25em] uppercase select-none">
           Vela
         </span>
@@ -103,25 +101,25 @@ export default async function HomePage() {
             </Button>
           </SignedOut>
           <SignedIn>
-            <UserButton afterSignOutUrl="/" />
+            <UserButton />
           </SignedIn>
         </nav>
       </header>
 
       {/* Hero */}
-      <main className="flex flex-1 flex-col">
+      <main className="flex min-h-0 flex-1 flex-col">
         {/* Text block */}
-        <div className="flex flex-col items-center px-6 pb-10 pt-10 text-center sm:px-10 sm:pt-14">
+        <div className="shrink-0 flex flex-col items-center px-6 pb-6 pt-6 text-center sm:px-10 sm:pt-8">
           <p className="text-[10px] font-semibold tracking-[0.4em] uppercase text-muted-foreground">
             New Season
           </p>
-          <h1 className="mt-3 text-[18vw] font-black leading-none tracking-[0.06em] uppercase text-foreground sm:text-[13vw] md:text-[11vw] lg:text-[9vw]">
+          <h1 className="mt-2 text-[16vw] font-black leading-none tracking-[0.06em] uppercase text-foreground sm:text-[12vw] md:text-[10vw] lg:text-[8vw]">
             VELA
           </h1>
-          <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground sm:max-w-sm">
+          <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground sm:max-w-sm">
             Curated essentials for those who value quality over quantity.
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg" className="gap-2 px-8">
               <Link href="/products">
                 Shop Collection
@@ -136,13 +134,17 @@ export default async function HomePage() {
           </div>
         </div>
 
-        {/* Product strip */}
-        {products.length > 0 && <ProductStrip products={products} />}
+        {/* Product strip — fills all remaining vertical space */}
+        {products.length > 0 && (
+          <div className="min-h-0 flex-1">
+            <ProductStrip products={products} />
+          </div>
+        )}
       </main>
 
       {/* Footer strip */}
-      <footer className="border-t border-border mt-10">
-        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 px-6 py-5 text-[10px] font-medium tracking-[0.2em] uppercase text-muted-foreground">
+      <footer className="shrink-0 border-t border-border">
+        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 px-6 py-3 text-[10px] font-medium tracking-[0.2em] uppercase text-muted-foreground">
           <span>Free Shipping</span>
           <span className="hidden sm:inline">·</span>
           <span>Easy Returns</span>

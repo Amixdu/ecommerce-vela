@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import type { ProductListResponse } from "@ecommerce/types";
 import { ProductCard } from "@/components/store/ProductCard";
-import { getProducts } from "@/lib/api";
+import { getProducts, getCart } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Collection" };
 
@@ -10,10 +11,13 @@ export default async function ProductsPage({
 }: {
   searchParams: { q?: string; category?: string };
 }) {
-  const data: ProductListResponse = await getProducts({
-    q: searchParams.q,
-    categoryId: searchParams.category,
-  });
+  const cookieStore = await cookies();
+  const cartId = cookieStore.get("medusa_cart_id")?.value;
+
+  const data = await getProducts({ q: searchParams.q, categoryId: searchParams.category });
+  const cart = cartId ? await getCart(cartId).catch(() => null) : null;
+
+  const cartProductIds = new Set(cart?.items.map((i) => i.productId) ?? []);
 
   return (
     <div>
@@ -40,14 +44,14 @@ export default async function ProductsPage({
         ) : data.products.length === 1 ? (
           <div className="flex justify-center">
             <div className="w-full max-w-xs border border-border">
-              <ProductCard product={data.products[0]} />
+              <ProductCard product={data.products[0]} inCart={cartProductIds.has(data.products[0].id)} />
             </div>
           </div>
         ) : (
           <ul className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {data.products.map((product) => (
               <li key={product.id} className="bg-background">
-                <ProductCard product={product} />
+                <ProductCard product={product} inCart={cartProductIds.has(product.id)} />
               </li>
             ))}
           </ul>

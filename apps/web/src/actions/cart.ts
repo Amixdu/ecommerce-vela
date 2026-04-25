@@ -67,7 +67,7 @@ export async function addToCart(variantId: string, quantity: number) {
     body: JSON.stringify({ variant_id: variantId, quantity }),
   });
 
-  revalidatePath("/cart");
+  revalidatePath("/", "layout");
 }
 
 export async function updateCartItem(itemId: string, quantity: number) {
@@ -86,7 +86,7 @@ export async function updateCartItem(itemId: string, quantity: number) {
     });
   }
 
-  revalidatePath("/cart");
+  revalidatePath("/", "layout");
 }
 
 export async function removeCartItem(itemId: string) {
