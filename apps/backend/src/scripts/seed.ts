@@ -1,8 +1,10 @@
 import { ExecArgs } from "@medusajs/framework/types";
 import {
   IAuthModuleService,
+  IInventoryService,
   IProductModuleService,
   IRegionModuleService,
+  IStockLocationModuleService,
 } from "@medusajs/framework/types";
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import {
@@ -94,6 +96,40 @@ export default async function seedData({ container }: ExecArgs) {
     logger.info("Australia region created.");
   } else {
     logger.info("Region already exists, skipping.");
+  }
+
+  // ── Stock Location ──────────────────────────────────────────────────────────
+  const stockLocationService: IStockLocationModuleService = container.resolve(
+    Modules.STOCK_LOCATION
+  );
+  const existingLocations = await stockLocationService.listStockLocations({});
+  let stockLocation = existingLocations[0];
+  if (!stockLocation) {
+    logger.info("Creating default stock location...");
+    [stockLocation] = await stockLocationService.createStockLocations([
+      { name: "Default Warehouse" },
+    ]);
+    logger.info("Stock location created.");
+  } else {
+    logger.info("Stock location already exists, skipping.");
+  }
+
+  // Link default sales channel → stock location so carts can check inventory
+  const salesChannelService = container.resolve(Modules.SALES_CHANNEL);
+  const [defaultChannel] = await salesChannelService.listSalesChannels({});
+  if (defaultChannel) {
+    const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK);
+    try {
+      await remoteLink.create([
+        {
+          [Modules.SALES_CHANNEL]: { sales_channel_id: defaultChannel.id },
+          [Modules.STOCK_LOCATION]: { stock_location_id: stockLocation.id },
+        },
+      ]);
+      logger.info("Linked sales channel → stock location.");
+    } catch {
+      logger.info("Sales channel → stock location link already exists.");
+    }
   }
 
   // ── Clean ───────────────────────────────────────────────────────────────────
@@ -288,6 +324,34 @@ export default async function seedData({ container }: ExecArgs) {
       input: { products: toCreate },
     });
     logger.info("Products created.");
+  }
+
+  // ── Inventory Levels ────────────────────────────────────────────────────────
+  // createProductsWorkflow creates InventoryItem records but not InventoryLevels.
+  // Without levels at the stock location the "add to cart" check throws.
+  const inventoryService: IInventoryService = container.resolve(
+    Modules.INVENTORY
+  );
+  const allInventoryItems = await inventoryService.listInventoryItems({});
+  const existingLevels = await inventoryService.listInventoryLevels({
+    location_id: [stockLocation.id],
+  });
+  const coveredItemIds = new Set(
+    existingLevels.map((l) => l.inventory_item_id)
+  );
+  const levelsToCreate = allInventoryItems
+    .filter((item) => !coveredItemIds.has(item.id))
+    .map((item) => ({
+      inventory_item_id: item.id,
+      location_id: stockLocation.id,
+      stocked_quantity: 60,
+    }));
+
+  if (levelsToCreate.length > 0) {
+    await inventoryService.createInventoryLevels(levelsToCreate);
+    logger.info(`Created ${levelsToCreate.length} inventory levels.`);
+  } else {
+    logger.info("Inventory levels already up to date.");
   }
 
   logger.info("Seeding complete.");
