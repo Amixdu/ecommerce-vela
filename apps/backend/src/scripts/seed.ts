@@ -80,7 +80,7 @@ export default async function seedData({ container }: ExecArgs) {
         {
           title: "S",
           sku: "CWT-S",
-          prices: [{ currency_code: "usd", amount: 2500 }],
+          prices: [{ currency_code: "aud", amount: 25 }],
           options: { Size: "S" },
           inventory_quantity: 50,
           manage_inventory: true,
@@ -88,7 +88,7 @@ export default async function seedData({ container }: ExecArgs) {
         {
           title: "M",
           sku: "CWT-M",
-          prices: [{ currency_code: "usd", amount: 2500 }],
+          prices: [{ currency_code: "aud", amount: 25 }],
           options: { Size: "M" },
           inventory_quantity: 100,
           manage_inventory: true,
@@ -96,7 +96,7 @@ export default async function seedData({ container }: ExecArgs) {
         {
           title: "L",
           sku: "CWT-L",
-          prices: [{ currency_code: "usd", amount: 2500 }],
+          prices: [{ currency_code: "aud", amount: 25 }],
           options: { Size: "L" },
           inventory_quantity: 75,
           manage_inventory: true,
@@ -114,7 +114,7 @@ export default async function seedData({ container }: ExecArgs) {
         {
           title: "S",
           sku: "EBT-S",
-          prices: [{ currency_code: "usd", amount: 2500 }],
+          prices: [{ currency_code: "aud", amount: 25 }],
           options: { Size: "S" },
           inventory_quantity: 60,
           manage_inventory: true,
@@ -122,7 +122,7 @@ export default async function seedData({ container }: ExecArgs) {
         {
           title: "M",
           sku: "EBT-M",
-          prices: [{ currency_code: "usd", amount: 2500 }],
+          prices: [{ currency_code: "aud", amount: 25 }],
           options: { Size: "M" },
           inventory_quantity: 90,
           manage_inventory: true,
