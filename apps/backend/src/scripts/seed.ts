@@ -31,10 +31,12 @@ function sizeVariants(
 }
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:9000";
-const img = (filename: string) => ({
-  thumbnail: `${BACKEND_URL}/static/${filename}`,
-  images: [{ url: `${BACKEND_URL}/static/${filename}` }],
-});
+const MEDIA_PUBLIC_URL = process.env.MEDIA_PUBLIC_URL;
+const img = (filename: string) => {
+  const base = MEDIA_PUBLIC_URL ?? `${BACKEND_URL}/static`;
+  const url = `${base}/${filename}`;
+  return { thumbnail: url, images: [{ url }] };
+};
 
 export default async function seedData({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
@@ -158,7 +160,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("t-shirts"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("CWT", 45),
-      ...img("whitetee.png"),
+      ...img("white_tee.png"),
     },
     {
       title: "Essential Black Tee",
@@ -169,7 +171,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("t-shirts"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("EBT", 45),
-      ...img("blactee.png"),
+      ...img("black_tee.png"),
     },
     {
       title: "Washed Grey Tee",
@@ -180,7 +182,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("t-shirts"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("WGT", 50),
-      ...img("greytee.png"),
+      ...img("grey_tee.png"),
     },
     {
       title: "Slate Blue Tee",
@@ -191,7 +193,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("t-shirts"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("SBT", 50),
-      ...img("bluetee.png"),
+      ...img("blue_tee.png"),
     },
     // ── Hoodies & Sweatshirts ─────────────────────────────────────────────────
     {
@@ -203,7 +205,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("hoodies-sweatshirts"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("HWH", 120),
-      ...img("heavyweighthoodie.png"),
+      ...img("heavyweight_hoodie.png"),
     },
     {
       title: "Relaxed Crewneck",
@@ -214,7 +216,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("hoodies-sweatshirts"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("RCN", 95),
-      ...img("relaxedcrewneck.png"),
+      ...img("relaxed_crewneck.png"),
     },
     // ── Trousers ──────────────────────────────────────────────────────────────
     {
@@ -237,7 +239,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("trousers"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("LT", 130),
-      ...img("linentrousers.png"),
+      ...img("linen_trousers.png"),
     },
     // ── Outerwear ─────────────────────────────────────────────────────────────
     {
@@ -249,7 +251,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("outerwear"),
       options: [{ title: "Size", values: SIZE_S_TO_XL }],
       variants: sizeVariants("COS", 175),
-      ...img("canvasovershirt.png"),
+      ...img("canvas_overshirt.png"),
     },
     {
       title: "Waxed Cotton Jacket",
@@ -272,7 +274,7 @@ export default async function seedData({ container }: ExecArgs) {
       categories: cat("accessories"),
       options: [{ title: "Size", values: ["One Size"] }],
       variants: sizeVariants("CT", 55, ["One Size"]),
-      ...img("canvastote.png"),
+      ...img("canvas_tote.png"),
     },
   ];
 
