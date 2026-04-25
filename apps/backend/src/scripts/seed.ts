@@ -1,6 +1,7 @@
 import { ExecArgs } from "@medusajs/framework/types";
 import {
   IAuthModuleService,
+  IFulfillmentModuleService,
   IInventoryService,
   IProductModuleService,
   IRegionModuleService,
@@ -87,15 +88,30 @@ export default async function seedData({ container }: ExecArgs) {
 
   // ── Region ──────────────────────────────────────────────────────────────────
   const regionService: IRegionModuleService = container.resolve(Modules.REGION);
-  const existingRegions = await regionService.listRegions({});
+  let existingRegions = await regionService.listRegions({});
   if (existingRegions.length === 0) {
     logger.info("Creating Australia region...");
     await regionService.createRegions([
       { name: "Australia", currency_code: "aud", countries: ["au"] },
     ]);
+    existingRegions = await regionService.listRegions({});
     logger.info("Australia region created.");
   } else {
     logger.info("Region already exists, skipping.");
+  }
+
+  // Add Stripe as a payment provider for the region.
+  // Provider ID format: pp_<provider-id>_<provider-id> — matches medusa-config.ts id: "stripe"
+  const region = existingRegions[0];
+  if (region) {
+    try {
+      await regionService.updateRegions([
+        { id: region.id, payment_providers: [{ id: "pp_stripe_stripe" }] },
+      ]);
+      logger.info("Stripe payment provider added to region.");
+    } catch {
+      logger.warn("Could not add Stripe to region — add it manually in admin: Settings → Regions.");
+    }
   }
 
   // ── Stock Location ──────────────────────────────────────────────────────────
@@ -130,6 +146,89 @@ export default async function seedData({ container }: ExecArgs) {
     } catch {
       logger.info("Sales channel → stock location link already exists.");
     }
+  }
+
+  // ── Shipping ────────────────────────────────────────────────────────────────
+  // Medusa v2 requires a shipping method on the cart before it can be completed.
+  // Setup: ShippingProfile → FulfillmentSet (linked to StockLocation) →
+  //        ServiceZone (geo) → ShippingOption (free, AUD 0)
+  const fulfillmentService: IFulfillmentModuleService = container.resolve(
+    Modules.FULFILLMENT
+  );
+  const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK);
+
+  // Shipping profile (products inherit this to mark them as shippable)
+  const existingProfiles = await fulfillmentService.listShippingProfiles({});
+  let shippingProfile = existingProfiles[0];
+  if (!shippingProfile) {
+    [shippingProfile] = await fulfillmentService.createShippingProfiles([
+      { name: "Default", type: "default" },
+    ]);
+    logger.info("Created shipping profile.");
+  } else {
+    logger.info("Shipping profile already exists.");
+  }
+
+  // Fulfillment set (groups shipping options; linked to the stock location)
+  const existingFulfillmentSets = await fulfillmentService.listFulfillmentSets({});
+  let fulfillmentSet = existingFulfillmentSets[0];
+  if (!fulfillmentSet) {
+    [fulfillmentSet] = await fulfillmentService.createFulfillmentSets([
+      { name: "Vela Shipping", type: "shipping" },
+    ]);
+    try {
+      await remoteLink.create([
+        {
+          [Modules.STOCK_LOCATION]: { stock_location_id: stockLocation.id },
+          [Modules.FULFILLMENT]: { fulfillment_set_id: fulfillmentSet.id },
+        },
+      ]);
+    } catch {
+      logger.info("Stock location → fulfillment set link may already exist.");
+    }
+    logger.info("Created fulfillment set.");
+  } else {
+    logger.info("Fulfillment set already exists.");
+  }
+
+  // Service zone (geographic coverage within the fulfillment set)
+  const existingZones = await fulfillmentService.listServiceZones({
+    fulfillment_set_id: fulfillmentSet.id,
+  });
+  let serviceZone = existingZones[0];
+  if (!serviceZone) {
+    [serviceZone] = await fulfillmentService.createServiceZones([
+      {
+        name: "Australia",
+        fulfillment_set_id: fulfillmentSet.id,
+        geo_zones: [{ type: "country", country_code: "au" }],
+      },
+    ]);
+    logger.info("Created service zone.");
+  } else {
+    logger.info("Service zone already exists.");
+  }
+
+  // Free shipping option within the service zone
+  const existingOptions = await fulfillmentService.listShippingOptions({
+    service_zone_id: serviceZone.id,
+  });
+  if (existingOptions.length === 0) {
+    await fulfillmentService.createShippingOptions([
+      {
+        name: "Free Shipping",
+        service_zone_id: serviceZone.id,
+        shipping_profile_id: shippingProfile.id,
+        // manual_manual = identifier "manual" + configured id "manual"
+        provider_id: "manual_manual",
+        type: { label: "Free", description: "Free shipping on all orders", code: "free" },
+        price_type: "flat",
+        prices: [{ currency_code: "aud", amount: 0 }],
+      },
+    ]);
+    logger.info("Created Free Shipping option.");
+  } else {
+    logger.info("Shipping option already exists.");
   }
 
   // ── Clean ───────────────────────────────────────────────────────────────────
