@@ -22,6 +22,9 @@ RUN npm install --ignore-scripts
 COPY --from=pruner /app/out/full/ .
 RUN npx turbo run build --filter=backend...
 
+# Manually compile config
+RUN npx tsc apps/backend/medusa-config.ts
+
 # SLim the image
 RUN npm prune --omit=dev
 
