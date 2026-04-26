@@ -1,3 +1,4 @@
+# Google cloud build config
 steps:
   - name: gcr.io/cloud-builders/docker
     args:
