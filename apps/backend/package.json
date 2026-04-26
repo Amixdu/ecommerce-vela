@@ -15,12 +15,13 @@
     "test": "jest"
   },
   "dependencies": {
-    "@medusajs/medusa": "2.13.6",
+    "@clerk/backend": "^1.14.1",
+    "@ecommerce/types": "*",
     "@medusajs/dashboard": "2.13.6",
     "@medusajs/framework": "2.13.6",
+    "@medusajs/medusa": "2.13.6",
     "drizzle-orm": "^0.31.0",
-    "postgres": "^3.4.4",
-    "@ecommerce/types": "*"
+    "postgres": "^3.4.4"
   },
   "devDependencies": {
     "@medusajs/admin-sdk": "2.13.6",
