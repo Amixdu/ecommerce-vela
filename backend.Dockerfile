@@ -7,7 +7,7 @@ RUN npm install -g turbo
 COPY . .
 RUN turbo prune backend --docker
 
-# ── build & prune ─────────────────────────────────────────────────────────────
+# ── build ─────────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 WORKDIR /app
 
@@ -22,22 +22,16 @@ RUN npm install --ignore-scripts
 COPY --from=pruner /app/out/full/ .
 RUN npx turbo run build --filter=backend...
 
-# Manually compile config (tsc is removed after prune, so causes error)
-RUN npx tsc apps/backend/medusa-config.ts --module Node16 --moduleResolution Node16
-
-# SLim the image
-RUN npm prune --omit=dev
-
 # ── production image ──────────────────────────────────────────────────────────
+# .medusa/server/ is the self-contained bundle medusa build emits:
+# compiled src/, medusa-config.js, and package.json — no workspace, no symlinks.
 FROM node:20-alpine AS runner
 WORKDIR /app
+COPY --from=builder /app/apps/backend/.medusa/server ./
 
-# FIX THE SYMLINK ERROR: Copy the entire built and pruned workspace
-# This ensures packages/types and apps/backend both exist, keeping symlinks alive.
-COPY --from=builder /app .
-
-# Set the working directory directly inside the backend app
-WORKDIR /app/apps/backend
+# Install prod deps. @ecommerce/* are devDeps so --omit=dev skips them
+# (no registry lookup for workspace-only packages).
+RUN npm install --omit=dev --ignore-scripts
 
 EXPOSE 9000
 
@@ -45,4 +39,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget -qO- http://localhost:9000/health || exit 1
 
 # Start the application
-CMD ["npm", "run", "start"]
+CMD ["node", "node_modules/@medusajs/cli/cli.js", "start"]
