@@ -5,7 +5,7 @@ import {
   IInventoryService,
   IProductModuleService,
   IRegionModuleService,
-  IStockLocationModuleService,
+  IStockLocationService,
 } from "@medusajs/framework/types";
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import {
@@ -13,8 +13,8 @@ import {
   createProductsWorkflow,
   deleteProductsWorkflow,
   createShippingOptionsWorkflow,
+  updateRegionsWorkflow,
 } from "@medusajs/core-flows";
-import { setAuthAppMetadataStep } from "@medusajs/core-flows";
 
 const SIZE_S_TO_XL = ["S", "M", "L", "XL"];
 const WAIST_SIZES = ["28", "30", "32", "34"];
@@ -60,7 +60,6 @@ export default async function seedData({ container }: ExecArgs) {
         body: { email: adminEmail, password: adminPassword },
         headers: {},
         query: {},
-        authScope: "admin",
         protocol: "http",
       }
     );
@@ -71,16 +70,10 @@ export default async function seedData({ container }: ExecArgs) {
       const { result: users } = await createUsersWorkflow(container).run({
         input: { users: [{ email: adminEmail, first_name: "Admin" }] },
       });
-      await setAuthAppMetadataStep.run?.({
-        input: {
-          authIdentityId: authIdentity.id,
-          actorType: "user",
-          value: users[0].id,
-        },
-        container,
-        metadata: {},
-        context: {},
-      });
+      await authService.updateAuthIdentities([{
+        id: authIdentity.id,
+        app_metadata: { user_id: users[0].id },
+      }]);
       logger.info(`Admin created: ${adminEmail}`);
     }
   } else {
@@ -106,9 +99,12 @@ export default async function seedData({ container }: ExecArgs) {
   const region = existingRegions[0];
   if (region) {
     try {
-      await regionService.updateRegions([
-        { id: region.id, payment_providers: [{ id: "pp_stripe_stripe" }] },
-      ]);
+      await updateRegionsWorkflow(container).run({
+        input: {
+          selector: { id: region.id },
+          update: { payment_providers: ["pp_stripe_stripe"] },
+        },
+      });
       logger.info("Stripe payment provider added to region.");
     } catch {
       logger.warn("Could not add Stripe to region — add it manually in admin: Settings → Regions.");
@@ -116,7 +112,7 @@ export default async function seedData({ container }: ExecArgs) {
   }
 
   // ── Stock Location ──────────────────────────────────────────────────────────
-  const stockLocationService: IStockLocationModuleService = container.resolve(
+  const stockLocationService: IStockLocationService = container.resolve(
     Modules.STOCK_LOCATION
   );
   const existingLocations = await stockLocationService.listStockLocations({});
@@ -208,7 +204,7 @@ export default async function seedData({ container }: ExecArgs) {
 
   // Service zone (geographic coverage within the fulfillment set)
   const existingZones = await fulfillmentService.listServiceZones({
-    fulfillment_set_id: fulfillmentSet.id,
+    fulfillment_set: { id: fulfillmentSet.id },
   });
   let serviceZone = existingZones[0];
   if (!serviceZone) {
@@ -230,7 +226,7 @@ export default async function seedData({ container }: ExecArgs) {
   // adding a shipping method to a cart fails with "does not have a price".
   // Always delete and recreate to fix any stale priceless options.
   const existingOptions = await fulfillmentService.listShippingOptions({
-    service_zone_id: serviceZone.id,
+    service_zone: { id: serviceZone.id },
   });
   if (existingOptions.length > 0) {
     await fulfillmentService.deleteShippingOptions(

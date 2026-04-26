@@ -11,7 +11,6 @@ export default defineConfig({
       authCors: process.env.AUTH_CORS || "http://localhost:3000",
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
-      bodyParser: { sizeLimit: "10mb" },
     },
   },
   admin: {

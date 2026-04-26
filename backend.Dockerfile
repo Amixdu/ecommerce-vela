@@ -19,9 +19,17 @@ COPY packages/types/package.json  ./packages/types/package.json
 COPY packages/utils/package.json  ./packages/utils/package.json
 COPY apps/backend/package.json    ./apps/backend/package.json
 
-# Use --ignore-scripts to avoid running lifecycle scripts before the full source
-# is present. Scripts that need source (e.g. prepare) run in the builder stage.
-RUN npm install --ignore-scripts
+# Stub out the other workspaces so npm doesn't try to install
+# their dependencies (Next.js, Expo, etc.)
+RUN mkdir -p apps/web apps/mobile && \
+    echo '{"name":"@ecommerce/web","version":"0.0.1","private":true}' > apps/web/package.json && \
+    echo '{"name":"@ecommerce/mobile","version":"0.0.1","private":true}' > apps/mobile/package.json
+
+# Install only what the backend + its shared packages need
+RUN npm install --ignore-scripts \
+    --workspace=packages/types \
+    --workspace=packages/utils \
+    --workspace=apps/backend
 
 # ── build ─────────────────────────────────────────────────────────────────────
 FROM deps AS builder
@@ -48,9 +56,7 @@ WORKDIR /app
 COPY --from=builder /app/apps/backend/.medusa/server ./
 
 # Install only production deps declared by the bundle's own package.json
-RUN npm install --omit=dev --ignore-scripts && \
-    # Remove npm cache to keep the layer small
-    npm cache clean --force
+RUN npm install --omit=dev --ignore-scripts
 
 EXPOSE 9000
 
