@@ -231,7 +231,7 @@ export async function getCart(cartId: string): Promise<Cart> {
 }
 
 export async function getOrders(token: string): Promise<OrderListResponse> {
-  return apiFetch<OrderListResponse>("/store/orders", {
+  return apiFetch<OrderListResponse>("/store/orders/mine", {
     token,
     cache: "no-store",
   });
