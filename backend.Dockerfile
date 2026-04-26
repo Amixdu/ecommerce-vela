@@ -8,8 +8,6 @@
 
 # ── base ─────────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS base
-ENV NODE_ENV=production \
-    PORT=9000
 
 # ── install all workspace deps (including devDeps needed for the build) ───────
 FROM node:20-alpine AS deps
