@@ -20,12 +20,11 @@ COPY --from=pruner /app/out/package-lock.json ./package-lock.json
 RUN npm install --ignore-scripts
 
 # ── install (prod deps only, for the runtime image) ───────────────────────────
-# Runs inside the pruned workspace so @ecommerce/* packages resolve locally
-# and never hit the npm registry, regardless of how they're categorised.
+# Standalone (non-workspace) install so all binaries land in /app/node_modules/.bin.
+# @ecommerce/* are devDeps so --omit=dev drops them without a registry lookup.
 FROM node:20-alpine AS prod-deps
 WORKDIR /app
-COPY --from=pruner /app/out/json/ .
-COPY --from=pruner /app/out/package-lock.json ./package-lock.json
+COPY --from=pruner /app/out/full/apps/backend/package.json ./package.json
 RUN npm install --omit=dev --ignore-scripts
 
 # ── build ─────────────────────────────────────────────────────────────────────
@@ -45,4 +44,4 @@ EXPOSE 9000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget -qO- http://localhost:9000/health || exit 1
 
-CMD ["node_modules/.bin/medusa", "start"]
+CMD ["node", "node_modules/@medusajs/cli/cli.js", "start"]
