@@ -113,5 +113,10 @@ export async function completeCheckout(formData: CheckoutFormData) {
   cookieStore.delete("medusa_cart_id");
   revalidatePath("/", "layout");
 
+  if (!result?.order?.id) {
+    // Handle the failure gracefully (e.g., throw an error or redirect back to checkout)
+    throw new Error("Checkout completed, but no order ID was returned.");
+  }
+
   redirect(`/orders/${result.order.id}?confirmed=true`);
 }
