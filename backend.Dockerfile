@@ -22,8 +22,8 @@ RUN npm install --ignore-scripts
 COPY --from=pruner /app/out/full/ .
 RUN npx turbo run build --filter=backend...
 
-# Manually compile config
-RUN npx tsc apps/backend/medusa-config.ts
+# Manually compile config (tsc is removed after prune, so causes error)
+RUN npx tsc apps/backend/medusa-config.ts --module Node16 --moduleResolution Node16
 
 # SLim the image
 RUN npm prune --omit=dev
