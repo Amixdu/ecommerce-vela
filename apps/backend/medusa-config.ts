@@ -33,5 +33,16 @@ export default defineConfig({
         ],
       },
     },
+    {
+      resolve: "@medusajs/medusa/fulfillment",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/fulfillment-manual",
+            id: "manual",
+          },
+        ],
+      },
+    },
   ],
 });

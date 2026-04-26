@@ -12,6 +12,7 @@ import {
   createUsersWorkflow,
   createProductsWorkflow,
   deleteProductsWorkflow,
+  createShippingOptionsWorkflow,
 } from "@medusajs/core-flows";
 import { setAuthAppMetadataStep } from "@medusajs/core-flows";
 
@@ -191,6 +192,20 @@ export default async function seedData({ container }: ExecArgs) {
     logger.info("Fulfillment set already exists.");
   }
 
+  // Link the manual fulfillment provider to the stock location so that
+  // createShippingOptionsWorkflow can validate "provider enabled for location"
+  try {
+    await remoteLink.create([
+      {
+        [Modules.STOCK_LOCATION]: { stock_location_id: stockLocation.id },
+        [Modules.FULFILLMENT]: { fulfillment_provider_id: "manual_manual" },
+      },
+    ]);
+    logger.info("Linked fulfillment provider → stock location.");
+  } catch {
+    logger.info("Fulfillment provider → stock location link may already exist.");
+  }
+
   // Service zone (geographic coverage within the fulfillment set)
   const existingZones = await fulfillmentService.listServiceZones({
     fulfillment_set_id: fulfillmentSet.id,
@@ -209,27 +224,34 @@ export default async function seedData({ container }: ExecArgs) {
     logger.info("Service zone already exists.");
   }
 
-  // Free shipping option within the service zone
+  // Free shipping option within the service zone.
+  // Must use createShippingOptionsWorkflow (not the service directly) so that
+  // Medusa creates and links a PriceSet via the Pricing module. Without this,
+  // adding a shipping method to a cart fails with "does not have a price".
+  // Always delete and recreate to fix any stale priceless options.
   const existingOptions = await fulfillmentService.listShippingOptions({
     service_zone_id: serviceZone.id,
   });
-  if (existingOptions.length === 0) {
-    await fulfillmentService.createShippingOptions([
+  if (existingOptions.length > 0) {
+    await fulfillmentService.deleteShippingOptions(
+      existingOptions.map((o) => o.id)
+    );
+    logger.info("Deleted stale shipping options.");
+  }
+  await createShippingOptionsWorkflow(container).run({
+    input: [
       {
         name: "Free Shipping",
         service_zone_id: serviceZone.id,
         shipping_profile_id: shippingProfile.id,
-        // manual_manual = identifier "manual" + configured id "manual"
         provider_id: "manual_manual",
         type: { label: "Free", description: "Free shipping on all orders", code: "free" },
         price_type: "flat",
         prices: [{ currency_code: "aud", amount: 0 }],
       },
-    ]);
-    logger.info("Created Free Shipping option.");
-  } else {
-    logger.info("Shipping option already exists.");
-  }
+    ],
+  });
+  logger.info("Created Free Shipping option with pricing.");
 
   // ── Clean ───────────────────────────────────────────────────────────────────
   const productService: IProductModuleService = container.resolve(
@@ -237,8 +259,7 @@ export default async function seedData({ container }: ExecArgs) {
   );
 
   if (clean) {
-    logger.info("SEED_CLEAN=true — wiping existing products and categories...");
-
+    logger.info("SEED_CLEAN=true — wiping existing products...");
     const allProducts = await productService.listProducts({});
     if (allProducts.length > 0) {
       await deleteProductsWorkflow(container).run({
@@ -246,12 +267,9 @@ export default async function seedData({ container }: ExecArgs) {
       });
       logger.info(`Deleted ${allProducts.length} products.`);
     }
-
-    const allCats = await productService.listProductCategories({});
-    if (allCats.length > 0) {
-      await productService.deleteProductCategories(allCats.map((c) => c.id));
-      logger.info(`Deleted ${allCats.length} categories.`);
-    }
+    // Categories are NOT deleted — their handles have a unique constraint that
+    // survives soft-deletes, blocking re-creation. Categories are static config
+    // that doesn't change between seeds.
   }
 
   // ── Categories ──────────────────────────────────────────────────────────────
@@ -263,17 +281,19 @@ export default async function seedData({ container }: ExecArgs) {
     { name: "Accessories", handle: "accessories" },
   ];
 
-  const existingCats = await productService.listProductCategories({});
-  const existingCatHandles = new Set(existingCats.map((c) => c.handle));
-  const toCreateCats = categoryDefs.filter(
-    (c) => !existingCatHandles.has(c.handle)
+  // Hard-delete then recreate categories to avoid soft-delete unique constraint
+  // conflicts. listProductCategories doesn't include handle in default fields,
+  // so idempotency via Set comparison silently fails.
+  const pgConnection = container.resolve(ContainerRegistrationKeys.PG_CONNECTION) as {
+    raw: (sql: string, bindings?: unknown[]) => Promise<unknown>;
+  };
+  const handles = categoryDefs.map((c) => c.handle);
+  const inPlaceholders = handles.map(() => "?").join(",");
+  await pgConnection.raw(
+    `DELETE FROM product_category WHERE handle IN (${inPlaceholders})`,
+    handles
   );
-  const newCats =
-    toCreateCats.length > 0
-      ? await productService.createProductCategories(toCreateCats)
-      : [];
-
-  const allCats = [...existingCats, ...newCats];
+  const allCats = await productService.createProductCategories(categoryDefs);
   const cat = (handle: string) => {
     const found = allCats.find((c) => c.handle === handle);
     if (!found) throw new Error(`Category not found: ${handle}`);
@@ -420,9 +440,38 @@ export default async function seedData({ container }: ExecArgs) {
   } else {
     logger.info(`Creating ${toCreate.length} products...`);
     await createProductsWorkflow(container).run({
-      input: { products: toCreate },
+      input: {
+        products: toCreate.map((p) => ({
+          ...p,
+          shipping_profile_id: shippingProfile.id,
+        })),
+      },
     });
     logger.info("Products created.");
+  }
+
+  // Backfill shipping profile for any existing products that were seeded
+  // before this field was added — without it checkout throws
+  // "cart items require shipping profiles not satisfied by shipping methods".
+  const allProductsNow = await productService.listProducts({});
+  let profileLinked = 0;
+  for (const product of allProductsNow) {
+    try {
+      await remoteLink.create([
+        {
+          [Modules.PRODUCT]: { product_id: product.id },
+          [Modules.FULFILLMENT]: { shipping_profile_id: shippingProfile.id },
+        },
+      ]);
+      profileLinked++;
+    } catch {
+      // Link already exists — fine
+    }
+  }
+  if (profileLinked > 0) {
+    logger.info(`Linked shipping profile to ${profileLinked} products.`);
+  } else {
+    logger.info("All products already have a shipping profile.");
   }
 
   // ── Inventory Levels ────────────────────────────────────────────────────────

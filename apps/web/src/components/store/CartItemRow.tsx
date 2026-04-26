@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Image from "next/image";
 import type { CartLineItem } from "@ecommerce/types";
 import { formatPrice } from "@ecommerce/utils";
@@ -14,15 +14,29 @@ interface CartItemRowProps {
 
 export function CartItemRow({ item }: CartItemRowProps) {
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
-  const decrement = () =>
-    startTransition(() => updateCartItem(item.id, item.quantity - 1));
-  const increment = () =>
-    startTransition(() => updateCartItem(item.id, item.quantity + 1));
-  const remove = () => startTransition(() => removeCartItem(item.id));
+  const run = (action: () => Promise<void>) => {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await action();
+      } catch {
+        setError("Something went wrong. Please refresh and try again.");
+      }
+    });
+  };
+
+  const decrement = () => run(() => updateCartItem(item.id, item.quantity - 1));
+  const increment = () => run(() => updateCartItem(item.id, item.quantity + 1));
+  const remove = () => run(() => removeCartItem(item.id));
 
   return (
-    <div className="flex items-center gap-4 py-4">
+    <div className="py-4">
+    {error && (
+      <p className="mb-2 text-xs text-destructive">{error}</p>
+    )}
+    <div className="flex items-center gap-4">
       <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-secondary">
         {item.thumbnail ? (
           <Image
@@ -89,6 +103,7 @@ export function CartItemRow({ item }: CartItemRowProps) {
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
+    </div>
     </div>
   );
 }

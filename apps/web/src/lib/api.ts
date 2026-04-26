@@ -214,7 +214,7 @@ export async function getProducts(
 export async function getProductByHandle(handle: string): Promise<Product> {
   const data = await apiFetch<MedusaProductList>(
     `/store/products?handle=${handle}&${PRODUCT_FIELDS}`,
-    { next: { revalidate: 60 } }
+    { cache: "no-store" } // always fresh so variant IDs are never stale for add-to-cart
   );
 
   const product = data.products[0];
@@ -237,15 +237,48 @@ export async function getOrders(token: string): Promise<OrderListResponse> {
   });
 }
 
-export async function createPaymentIntent(
-  amount: number,
-  currency: string,
-  token: string
+type MedusaPaymentCollection = {
+  id: string;
+  payment_sessions?: Array<{
+    id: string;
+    provider_id: string;
+    data: { client_secret?: string };
+  }>;
+};
+
+export async function setupStripePayment(
+  cartId: string
 ): Promise<{ clientSecret: string }> {
-  return apiFetch<{ clientSecret: string }>("/store/payment-intents", {
+  // POST /store/payment-collections is idempotent — returns existing if one exists
+  const { payment_collection } = await apiFetch<{
+    payment_collection: MedusaPaymentCollection;
+  }>("/store/payment-collections", {
     method: "POST",
-    token,
-    body: JSON.stringify({ amount, currency }),
+    body: JSON.stringify({ cart_id: cartId }),
     cache: "no-store",
   });
+
+  // Reuse an existing Stripe session if one is already attached — avoids
+  // accumulating multiple PaymentIntents across repeated checkout visits.
+  const existingSecret = payment_collection.payment_sessions?.find(
+    (s) => s.provider_id === "pp_stripe_stripe" && s.data?.client_secret
+  )?.data?.client_secret;
+
+  if (existingSecret) return { clientSecret: existingSecret };
+
+  // No session yet — create one; Medusa calls Stripe and returns a client_secret
+  const { payment_collection: withSession } = await apiFetch<{
+    payment_collection: MedusaPaymentCollection;
+  }>(`/store/payment-collections/${payment_collection.id}/payment-sessions`, {
+    method: "POST",
+    body: JSON.stringify({ provider_id: "pp_stripe_stripe" }),
+    cache: "no-store",
+  });
+
+  const clientSecret = withSession.payment_sessions?.find(
+    (s) => s.provider_id === "pp_stripe_stripe"
+  )?.data?.client_secret;
+  if (!clientSecret) throw new Error("Failed to create Stripe payment session");
+
+  return { clientSecret };
 }

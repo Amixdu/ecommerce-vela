@@ -9,7 +9,11 @@ import { formatPrice } from "@ecommerce/utils";
 
 export const metadata: Metadata = { title: "Cart" };
 
-export default async function CartPage() {
+export default async function CartPage({
+  searchParams,
+}: {
+  searchParams: { cleared?: string };
+}) {
   const cartId = (await cookies()).get("medusa_cart_id")?.value;
   const cart = cartId ? await getCart(cartId).catch(() => null) : null;
 
@@ -18,9 +22,15 @@ export default async function CartPage() {
       <div className="flex flex-col items-center justify-center px-4 py-32 text-center">
         <ShoppingBag className="h-12 w-12 text-muted-foreground/40" strokeWidth={1} />
         <h1 className="mt-6 text-2xl font-bold tracking-tight">Your bag is empty</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Add something beautiful to get started.
-        </p>
+        {searchParams.cleared === "1" ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Some items in your bag are no longer available and have been removed.
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Add something beautiful to get started.
+          </p>
+        )}
         <Button asChild className="mt-8 px-8" size="lg">
           <Link href="/products">Browse Collection</Link>
         </Button>

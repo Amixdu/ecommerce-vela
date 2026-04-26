@@ -20,19 +20,30 @@ export function AddToCartButton({
   );
   const [isPending, startTransition] = useTransition();
   const [added, setAdded] = useState(false);
+  const [cartError, setCartError] = useState<string | null>(null);
   // Tracks in-cart quantities locally so the indicator updates immediately after adding
   const [localCartItems, setLocalCartItems] = useState(initialCartItems);
 
   const handleAddToCart = () => {
     if (!selectedVariantId) return;
+    setCartError(null);
     startTransition(async () => {
-      await addToCart(selectedVariantId, 1);
-      setLocalCartItems((prev) => ({
-        ...prev,
-        [selectedVariantId]: (prev[selectedVariantId] ?? 0) + 1,
-      }));
-      setAdded(true);
-      setTimeout(() => setAdded(false), 2500);
+      try {
+        await addToCart(selectedVariantId, 1);
+        setLocalCartItems((prev) => ({
+          ...prev,
+          [selectedVariantId]: (prev[selectedVariantId] ?? 0) + 1,
+        }));
+        setAdded(true);
+        setTimeout(() => setAdded(false), 2500);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("do not exist") || msg.includes("not published")) {
+          setCartError("This product is no longer available. Please refresh the page.");
+        } else {
+          setCartError("Could not add to bag. Please try again.");
+        }
+      }
     });
   };
 
@@ -97,6 +108,10 @@ export function AddToCartButton({
           "Add to Bag"
         )}
       </Button>
+
+      {cartError && (
+        <p className="text-sm text-destructive">{cartError}</p>
+      )}
 
       {selectedQty > 0 && !added && (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

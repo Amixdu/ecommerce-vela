@@ -62,6 +62,8 @@ async function getOrCreateCartId(): Promise<string> {
 export async function addToCart(variantId: string, quantity: number) {
   const cartId = await getOrCreateCartId();
 
+  await clearPaymentCollection(cartId);
+
   await backendFetch(`/store/carts/${cartId}/line-items`, {
     method: "POST",
     body: JSON.stringify({ variant_id: variantId, quantity }),
@@ -70,10 +72,23 @@ export async function addToCart(variantId: string, quantity: number) {
   revalidatePath("/", "layout");
 }
 
+async function clearPaymentCollection(cartId: string) {
+  // Removes any Stripe PaymentIntent from Medusa's DB without calling the
+  // Stripe cancel API.  Required before cart mutations because Medusa's
+  // refresh-payment-collection workflow fails when Stripe rejects the cancel.
+  await backendFetch(`/store/carts/${cartId}/payment-collection`, {
+    method: "DELETE",
+  }).catch(() => {
+    // Non-fatal — if there's no collection, or deletion fails, proceed anyway
+  });
+}
+
 export async function updateCartItem(itemId: string, quantity: number) {
   const cookieStore = await cookies();
   const cartId = cookieStore.get(CART_COOKIE)?.value;
   if (!cartId) return;
+
+  await clearPaymentCollection(cartId);
 
   if (quantity <= 0) {
     await backendFetch(`/store/carts/${cartId}/line-items/${itemId}`, {
