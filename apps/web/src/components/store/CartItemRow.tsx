@@ -18,12 +18,14 @@ export function CartItemRow({ item }: CartItemRowProps) {
 
   const run = (action: () => Promise<void>) => {
     setError(null);
-    startTransition(async () => {
-      try {
-        await action();
-      } catch {
-        setError("Something went wrong. Please refresh and try again.");
-      }
+    startTransition(() => {
+      void (async () => {
+        try {
+          await action();
+        } catch {
+          setError("Something went wrong. Please refresh and try again.");
+        }
+      })();
     });
   };
 

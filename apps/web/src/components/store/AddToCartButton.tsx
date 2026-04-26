@@ -27,23 +27,25 @@ export function AddToCartButton({
   const handleAddToCart = () => {
     if (!selectedVariantId) return;
     setCartError(null);
-    startTransition(async () => {
-      try {
-        await addToCart(selectedVariantId, 1);
-        setLocalCartItems((prev) => ({
-          ...prev,
-          [selectedVariantId]: (prev[selectedVariantId] ?? 0) + 1,
-        }));
-        setAdded(true);
-        setTimeout(() => setAdded(false), 2500);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes("do not exist") || msg.includes("not published")) {
-          setCartError("This product is no longer available. Please refresh the page.");
-        } else {
-          setCartError("Could not add to bag. Please try again.");
+    startTransition(() => {
+      void (async () => {
+        try {
+          await addToCart(selectedVariantId, 1);
+          setLocalCartItems((prev) => ({
+            ...prev,
+            [selectedVariantId]: (prev[selectedVariantId] ?? 0) + 1,
+          }));
+          setAdded(true);
+          setTimeout(() => setAdded(false), 2500);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes("do not exist") || msg.includes("not published")) {
+            setCartError("This product is no longer available. Please refresh the page.");
+          } else {
+            setCartError("Could not add to bag. Please try again.");
+          }
         }
-      }
+      })();
     });
   };
 
