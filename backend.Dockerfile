@@ -18,6 +18,10 @@ COPY --from=pruner /app/out/package-lock.json ./package-lock.json
 # Install ALL dependencies (Dev + Prod) so TypeScript can compile
 RUN npm install --ignore-scripts
 
+# To bake in backend url to medusas react admin app
+ARG MEDUSA_BACKEND_URL
+ENV MEDUSA_BACKEND_URL=$MEDUSA_BACKEND_URL
+
 # Copy the actual source code and build it
 COPY --from=pruner /app/out/full/ .
 RUN npx turbo run build --filter=backend...
