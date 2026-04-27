@@ -5,7 +5,7 @@ steps:
       - build
       - '--no-cache'
       - '--build-arg'
-      - 'MEDUSA_BACKEND_URL=https://vela-api-110510054636.asia-northeast1.run.app'
+      - 'MEDUSA_BACKEND_URL=/'
       - '-t'
       - >-
         $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
