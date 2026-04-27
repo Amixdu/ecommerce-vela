@@ -14,6 +14,7 @@ import { formatPrice } from "@ecommerce/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { completeCheckout, type CheckoutFormData } from "@/actions/checkout";
 
 const stripePromise = loadStripe(
@@ -93,7 +94,10 @@ function StripePaymentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <PaymentElement onReady={() => setIsReady(true)} />
+      {!isReady && <Skeleton className="h-36 w-full" />}
+      <div className={isReady ? undefined : "hidden"}>
+        <PaymentElement onReady={() => setIsReady(true)} />
+      </div>
       {errorMessage && (
         <p className="text-sm text-destructive">{errorMessage}</p>
       )}
